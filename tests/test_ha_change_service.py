@@ -87,6 +87,15 @@ class ProposedChangeAgent(CodeAgentCapability):
         raise NotImplementedError
 
 
+class CapturingAgent(ProposedChangeAgent):
+    def __init__(self) -> None:
+        self.requests: list[CodeAgentRequest] = []
+
+    async def propose_changes(self, request: CodeAgentRequest) -> CodeAgentResult:
+        self.requests.append(request)
+        return await super().propose_changes(request)
+
+
 class AnswerAwareAgent(CodeAgentCapability):
     async def propose_changes(self, request: CodeAgentRequest) -> CodeAgentResult:
         if not request.user_answers:
@@ -159,6 +168,31 @@ async def test_draft_with_content_can_wait_for_confirmation(tmp_path: Path) -> N
 
 
 @pytest.mark.anyio
+async def test_draft_can_ignore_content_supplied_by_conversation_llm(tmp_path: Path) -> None:
+    target = tmp_path / "packages/areas/salon.yaml"
+    target.parent.mkdir(parents=True)
+    target.write_text("automation: []\n", encoding="utf-8")
+    agent = CapturingAgent()
+    service = HaChangeService(
+        git_service=FakeGitService(tmp_path),  # type: ignore[arg-type]
+        proposal_store=ProposalStore(tmp_path),
+        home_assistant_service=FakeHomeAssistantService(),  # type: ignore[arg-type]
+        code_agent=agent,
+    )
+
+    proposal = await service.draft_change(
+        user_request="Mettre a jour salon",
+        path="packages/areas/salon.yaml",
+        content="automation:\n  - id: invented_by_conversation_llm\n",
+        accept_supplied_content=False,
+    )
+
+    assert proposal.status == HaChangeProposalStatus.awaiting_confirmation
+    assert "invented_by_conversation_llm" not in proposal.proposed_changes[0].content
+    assert agent.requests
+
+
+@pytest.mark.anyio
 async def test_draft_uses_code_agent_to_prepare_change(tmp_path: Path) -> None:
     target = tmp_path / "packages/areas/salon.yaml"
     target.parent.mkdir(parents=True)
@@ -175,6 +209,29 @@ async def test_draft_uses_code_agent_to_prepare_change(tmp_path: Path) -> None:
     assert proposal.status == HaChangeProposalStatus.awaiting_confirmation
     assert proposal.summary == "Ajoute une automation salon."
     assert proposal.proposed_changes[0].path == "packages/areas/salon.yaml"
+
+
+@pytest.mark.anyio
+async def test_draft_infers_school_routine_files(tmp_path: Path) -> None:
+    children = tmp_path / "packages/routines/children.yaml"
+    holidays = tmp_path / "packages/functions/vacances_scolaires.yaml"
+    children.parent.mkdir(parents=True)
+    holidays.parent.mkdir(parents=True)
+    children.write_text("automation: []\n", encoding="utf-8")
+    holidays.write_text("template: []\n", encoding="utf-8")
+    service = HaChangeService(
+        git_service=FakeGitService(tmp_path),  # type: ignore[arg-type]
+        proposal_store=ProposalStore(tmp_path),
+        home_assistant_service=FakeHomeAssistantService(),  # type: ignore[arg-type]
+        code_agent=ClarificationAgent(),
+    )
+
+    proposal = await service.draft_change(
+        "Ajouter une condition aux rappels d'école pendant les vacances scolaires"
+    )
+
+    assert "packages/routines/children.yaml" in proposal.target_files
+    assert "packages/functions/vacances_scolaires.yaml" in proposal.target_files
 
 
 @pytest.mark.anyio

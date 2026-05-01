@@ -1,7 +1,6 @@
 from mcp.server.fastmcp import FastMCP
 
 from nestor_mcp.models.ha_change import HaChangeConfirmationResult, HaChangeProposal
-from nestor_mcp.models.home_assistant import HaInventory
 from nestor_mcp.services.ha_change_service import HaChangeService
 from nestor_mcp.services.home_assistant import HomeAssistantService
 from nestor_mcp.services.proposal_store import ProposalStore
@@ -11,9 +10,26 @@ from nestor_mcp.workflows.ha_explain.workflow import HaExplainWorkflow
 
 def register_ha_gitops_tools(mcp: FastMCP) -> None:
     @mcp.tool()
-    async def ha_config_context() -> HaInventory:
-        """Read Home Assistant entities, services and config without writing to production."""
-        return await HomeAssistantService().get_inventory()
+    async def ha_config_context() -> str:
+        """
+        Return a compact read-only summary of the Home Assistant inventory. Do not
+        use this to inspect all entities in detail; for behavior explanations use
+        explain_smart_home_behavior, and for configuration changes use
+        draft_home_assistant_change.
+        """
+        inventory = await HomeAssistantService().get_inventory()
+        domains: dict[str, int] = {}
+        for entity in inventory.entities:
+            domain = entity.entity_id.split(".", 1)[0]
+            domains[domain] = domains.get(domain, 0) + 1
+        domain_summary = ", ".join(
+            f"{domain}: {count}" for domain, count in sorted(domains.items())[:20]
+        )
+        return (
+            f"Home Assistant inventory: {len(inventory.entities)} entities, "
+            f"{len(inventory.services)} service domains. Entity domains: {domain_summary}. "
+            "Use dedicated Nestor tools for detailed analysis or GitOps changes."
+        )
 
     @mcp.tool()
     async def explain_smart_home_behavior(
@@ -48,8 +64,6 @@ def register_ha_gitops_tools(mcp: FastMCP) -> None:
     @mcp.tool()
     async def draft_home_assistant_change(
         user_request: str,
-        path: str | None = None,
-        content: str | None = None,
         commit_message: str | None = None,
     ) -> HaChangeProposal:
         """
@@ -58,13 +72,13 @@ def register_ha_gitops_tools(mcp: FastMCP) -> None:
         GitOps proposal only: it may ask clarification questions, prepares file
         changes with the configured code agent, validates YAML and Home Assistant
         references, then waits for explicit user confirmation before any branch,
-        push or pull request is created.
+        push or pull request is created. Pass only the user's requested behavior;
+        do not invent YAML content or file paths in the tool arguments.
         """
         return await HaChangeService().draft_change(
             user_request=user_request,
-            path=path,
-            content=content,
             commit_message=commit_message,
+            accept_supplied_content=False,
         )
 
     @mcp.tool()
@@ -98,16 +112,13 @@ def register_ha_gitops_tools(mcp: FastMCP) -> None:
     @mcp.tool()
     async def propose_home_assistant_change(
         user_request: str,
-        path: str | None = None,
-        content: str | None = None,
         commit_message: str | None = None,
     ) -> HaChangeProposal:
         """Backward-compatible alias for drafting a Home Assistant GitOps change."""
         return await HaChangeService().draft_change(
             user_request=user_request,
-            path=path,
-            content=content,
             commit_message=commit_message,
+            accept_supplied_content=False,
         )
 
 

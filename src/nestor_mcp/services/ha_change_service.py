@@ -10,6 +10,7 @@ from nestor_mcp.capabilities.code_agent.models import (
     CodeAgentResultType,
 )
 from nestor_mcp.capabilities.code_agent.providers import get_code_agent_capability
+from nestor_mcp.capabilities.workspace.repo_context import RepoContextCapability
 from nestor_mcp.config import get_settings
 from nestor_mcp.models.ha_change import (
     HaChangeConfirmationResult,
@@ -49,6 +50,13 @@ FUNCTION_FILE_HINTS = {
     "presence": "packages/functions/presence.yaml",
     "présence": "packages/functions/presence.yaml",
     "notification": "packages/functions/notification.yaml",
+    "vacances": "packages/functions/vacances_scolaires.yaml",
+    "scolaire": "packages/functions/vacances_scolaires.yaml",
+    "scolaires": "packages/functions/vacances_scolaires.yaml",
+    "jour ferie": "packages/functions/vacances_scolaires.yaml",
+    "jour férié": "packages/functions/vacances_scolaires.yaml",
+    "jours feries": "packages/functions/vacances_scolaires.yaml",
+    "jours fériés": "packages/functions/vacances_scolaires.yaml",
     "securite": "packages/functions/securtity_system.yaml",
     "sécurité": "packages/functions/securtity_system.yaml",
     "energie": "packages/functions/energy_monitor.yaml",
@@ -63,6 +71,10 @@ ROUTINE_FILE_HINTS = {
     "nuit": "packages/routines/day.yaml",
     "absence": "packages/routines/away.yaml",
     "enfant": "packages/routines/children.yaml",
+    "enfants": "packages/routines/children.yaml",
+    "ecole": "packages/routines/children.yaml",
+    "école": "packages/routines/children.yaml",
+    "rappel": "packages/routines/children.yaml",
     "travail": "packages/routines/work.yaml",
 }
 
@@ -89,14 +101,15 @@ class HaChangeService:
         path: str | None = None,
         content: str | None = None,
         commit_message: str | None = None,
+        accept_supplied_content: bool = True,
     ) -> HaChangeProposal:
         self.git_service.ensure_repo_current()
         inventory = await self.try_get_inventory()
-        target_files = [path] if path else self.infer_target_files(user_request)
+        target_files = self.resolve_target_files(user_request, path)
         proposal_id = str(uuid4())
         branch_name = slugify_branch(f"{user_request}-{proposal_id[:8]}")
         agent_result: CodeAgentResult | None = None
-        if path and content:
+        if path and content and accept_supplied_content:
             changes = [ProposedFileChange(path=path, content=content)]
         elif target_files:
             agent_result = await self.ask_code_agent_for_changes(
@@ -141,6 +154,17 @@ class HaChangeService:
         )
         self.proposal_store.save(proposal)
         return proposal
+
+    def resolve_target_files(self, user_request: str, path: str | None = None) -> list[str]:
+        inferred = self.infer_target_files(user_request)
+        if path and path not in inferred:
+            try:
+                safe_path = ensure_editable_ha_path(path).as_posix()
+            except ValueError:
+                safe_path = ""
+            if safe_path and (Path(self.git_service.repo_path) / safe_path).exists():
+                inferred.insert(0, safe_path)
+        return inferred[:4]
 
     async def ask_code_agent_for_changes(
         self,
@@ -290,6 +314,14 @@ class HaChangeService:
             return None
 
     def infer_target_files(self, user_request: str) -> list[str]:
+        repo_path = Path(self.git_service.repo_path)
+        if repo_path.exists():
+            repo_matches = RepoContextCapability(repo_path).find_ha_package_candidates(
+                user_request
+            )
+            if repo_matches:
+                return repo_matches[:4]
+
         normalized = user_request.lower()
         matches: list[str] = []
         for hints in (AREA_FILE_HINTS, ROUTINE_FILE_HINTS, FUNCTION_FILE_HINTS):
