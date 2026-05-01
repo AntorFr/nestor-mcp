@@ -44,7 +44,7 @@ Variables non sensibles :
 - `DEFAULT_LLM_PROVIDER=mock`
 - `DEFAULT_CODE_AGENT_PROVIDER=claude_code`
 - `HA_EXPLAIN_PROVIDER=anthropic_api`
-- `HA_EXPLAIN_MODEL=claude-3-5-haiku-latest`
+- `HA_EXPLAIN_MODEL=claude-haiku-4-5-20251001`
 - `HA_EXPLAIN_TIMEOUT_SECONDS=20`
 - `HA_GITOPS_PROVIDER=claude_code`
 - `HA_GITOPS_TIMEOUT_SECONDS=180`

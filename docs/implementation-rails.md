@@ -188,7 +188,7 @@ For Assist, use a low-latency direct LLM provider:
 
 ```env
 HA_EXPLAIN_PROVIDER=anthropic_api
-HA_EXPLAIN_MODEL=claude-3-5-haiku-latest
+HA_EXPLAIN_MODEL=claude-haiku-4-5-20251001
 HA_EXPLAIN_TIMEOUT_SECONDS=20
 ANTHROPIC_API_KEY=...
 ```

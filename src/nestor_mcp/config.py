@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     )
     ha_explain_provider: str | None = Field(default=None, alias="HA_EXPLAIN_PROVIDER")
     ha_explain_model: str = Field(
-        default="claude-3-5-haiku-latest",
+        default="claude-haiku-4-5-20251001",
         alias="HA_EXPLAIN_MODEL",
     )
     ha_explain_timeout_seconds: int = Field(default=20, alias="HA_EXPLAIN_TIMEOUT_SECONDS")
