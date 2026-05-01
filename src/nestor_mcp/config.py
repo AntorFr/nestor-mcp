@@ -47,7 +47,21 @@ class Settings(BaseSettings):
         alias="WORKFLOW_RUNS_PATH",
     )
 
-    code_agent_provider: str = Field(default="mock", alias="CODE_AGENT_PROVIDER")
+    default_llm_provider: str = Field(default="mock", alias="DEFAULT_LLM_PROVIDER")
+    default_code_agent_provider: str = Field(
+        default="claude_code",
+        alias="DEFAULT_CODE_AGENT_PROVIDER",
+    )
+    ha_explain_provider: str | None = Field(default=None, alias="HA_EXPLAIN_PROVIDER")
+    ha_explain_model: str = Field(
+        default="claude-3-5-haiku-latest",
+        alias="HA_EXPLAIN_MODEL",
+    )
+    ha_explain_timeout_seconds: int = Field(default=20, alias="HA_EXPLAIN_TIMEOUT_SECONDS")
+    ha_gitops_provider: str | None = Field(default=None, alias="HA_GITOPS_PROVIDER")
+    ha_gitops_timeout_seconds: int = Field(default=180, alias="HA_GITOPS_TIMEOUT_SECONDS")
+
+    anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
     claude_code_command: str = Field(default="claude", alias="CLAUDE_CODE_COMMAND")
     claude_code_timeout_seconds: int = Field(default=120, alias="CLAUDE_CODE_TIMEOUT_SECONDS")
 

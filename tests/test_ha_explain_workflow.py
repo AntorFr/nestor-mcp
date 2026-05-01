@@ -2,16 +2,10 @@ from pathlib import Path
 
 import pytest
 
-from nestor_mcp.capabilities.code_agent.capability import CodeAgentCapability
-from nestor_mcp.capabilities.code_agent.models import (
-    CodeAgentExplainRequest,
-    CodeAgentExplainResult,
-    CodeAgentFile,
-    CodeAgentRequest,
-    CodeAgentResult,
-    CodeAgentResultType,
-)
-from nestor_mcp.capabilities.code_agent.providers import MockCodeAgentCapability
+from nestor_mcp.capabilities.code_agent.models import CodeAgentFile
+from nestor_mcp.capabilities.llm.capability import LlmCapability
+from nestor_mcp.capabilities.llm.models import LlmExplainRequest, LlmExplainResult
+from nestor_mcp.capabilities.llm.providers import MockLlmCapability
 from nestor_mcp.capabilities.workspace.repo_context import RepoContextCapability
 from nestor_mcp.orchestration.store import WorkflowStore
 from nestor_mcp.workflows.ha_explain.graph import HaExplainGraphFactory, infer_answer_style
@@ -38,19 +32,13 @@ class FakeContextCollector:
         return files, entities
 
 
-class CapturingCodeAgent(CodeAgentCapability):
+class CapturingLlm(LlmCapability):
     def __init__(self) -> None:
-        self.requests: list[CodeAgentExplainRequest] = []
+        self.requests: list[LlmExplainRequest] = []
 
-    async def propose_changes(self, request: CodeAgentRequest) -> CodeAgentResult:
-        return CodeAgentResult(
-            type=CodeAgentResultType.failed,
-            summary="Not implemented in this fake.",
-        )
-
-    async def explain_config(self, request: CodeAgentExplainRequest) -> CodeAgentExplainResult:
+    async def explain(self, request: LlmExplainRequest) -> LlmExplainResult:
         self.requests.append(request)
-        return CodeAgentExplainResult(answer="Réponse simple.")
+        return LlmExplainResult(answer="Réponse simple.")
 
 
 @pytest.fixture
@@ -65,7 +53,7 @@ async def test_ha_explain_workflow_returns_run_id_and_persists_followup(tmp_path
         store=WorkflowStore(tmp_path),
         graph_factory=HaExplainGraphFactory(
             context_collector=collector,  # type: ignore[arg-type]
-            code_agent=MockCodeAgentCapability(),
+            llm=MockLlmCapability(),
         ),
     )
 
@@ -107,18 +95,18 @@ def test_infer_answer_style_detects_expert_request() -> None:
 
 
 @pytest.mark.anyio
-async def test_ha_explain_workflow_passes_answer_style_to_code_agent(tmp_path: Path) -> None:
-    agent = CapturingCodeAgent()
+async def test_ha_explain_workflow_passes_answer_style_to_llm(tmp_path: Path) -> None:
+    llm = CapturingLlm()
     workflow = HaExplainWorkflow(
         store=WorkflowStore(tmp_path),
         graph_factory=HaExplainGraphFactory(
             context_collector=FakeContextCollector(),  # type: ignore[arg-type]
-            code_agent=agent,
+            llm=llm,
         ),
     )
 
     await workflow.ask("Pourquoi les lampes s'allument dans le salon ?")
     await workflow.ask("Donne les détails de configuration")
 
-    assert agent.requests[0].context["answer_style"] == "default"
-    assert agent.requests[1].context["answer_style"] == "expert"
+    assert llm.requests[0].context["answer_style"] == "default"
+    assert llm.requests[1].context["answer_style"] == "expert"

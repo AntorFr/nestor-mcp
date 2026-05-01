@@ -177,24 +177,27 @@ It must:
 
 - update the persistent GitOps clone before collecting repo context
 - read Home Assistant only through read-only APIs
-- call `CodeAgentCapability.explain_config`
+- call `LlmCapability.explain`
 - support follow-up questions through the same `run_id`
 - persist conversation history in `WorkflowStore`
 - never write files, push branches, open PRs, or call Home Assistant write APIs
 
-Default local provider is `CODE_AGENT_PROVIDER=mock`.
+Default local provider is `HA_EXPLAIN_PROVIDER=mock`.
 
-To use Claude Code, configure:
+For Assist, use a low-latency direct LLM provider:
 
 ```env
-CODE_AGENT_PROVIDER=claude_code
-CLAUDE_CODE_COMMAND=claude
-CLAUDE_CODE_TIMEOUT_SECONDS=120
+HA_EXPLAIN_PROVIDER=anthropic_api
+HA_EXPLAIN_MODEL=claude-3-5-haiku-latest
+HA_EXPLAIN_TIMEOUT_SECONDS=20
+ANTHROPIC_API_KEY=...
 ```
 
-Claude Code is expected to run in headless mode and return JSON with:
+The provider is expected to return JSON with:
 
 - `answer`
 - `referenced_files`
 - `referenced_entities`
 - `follow_up_suggestions`
+
+Claude Code remains reserved for workflows that need code/config editing, such as HA GitOps.

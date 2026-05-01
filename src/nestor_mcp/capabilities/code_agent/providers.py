@@ -83,12 +83,13 @@ class ClaudeCodeCapability(CodeAgentCapability):
 
 
 def get_code_agent_capability() -> CodeAgentCapability:
-    provider = get_settings().code_agent_provider.lower()
+    settings = get_settings()
+    provider = (settings.ha_gitops_provider or settings.default_code_agent_provider).lower()
     if provider == "claude_code":
         return ClaudeCodeCapability()
     if provider == "mock":
         return MockCodeAgentCapability()
-    raise ValueError(f"Unsupported CODE_AGENT_PROVIDER: {provider}")
+    raise ValueError(f"Unsupported code agent provider: {provider}")
 
 
 def build_explain_prompt(request: CodeAgentExplainRequest) -> str:

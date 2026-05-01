@@ -41,7 +41,13 @@ Variables non sensibles :
 - `GITOPS_DEFAULT_BRANCH=master`
 - `PROPOSALS_PATH=/data/nestor-mcp/proposals`
 - `WORKFLOW_RUNS_PATH=/data/nestor-mcp/workflow-runs`
-- `CODE_AGENT_PROVIDER=claude_code`
+- `DEFAULT_LLM_PROVIDER=mock`
+- `DEFAULT_CODE_AGENT_PROVIDER=claude_code`
+- `HA_EXPLAIN_PROVIDER=anthropic_api`
+- `HA_EXPLAIN_MODEL=claude-3-5-haiku-latest`
+- `HA_EXPLAIN_TIMEOUT_SECONDS=20`
+- `HA_GITOPS_PROVIDER=claude_code`
+- `HA_GITOPS_TIMEOUT_SECONDS=180`
 - `CLAUDE_CODE_COMMAND=claude`
 - `CLAUDE_CODE_TIMEOUT_SECONDS=120`
 

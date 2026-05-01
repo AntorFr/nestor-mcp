@@ -3,9 +3,9 @@ from typing import Any, TypedDict
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, StateGraph
 
-from nestor_mcp.capabilities.code_agent.capability import CodeAgentCapability
-from nestor_mcp.capabilities.code_agent.models import CodeAgentExplainRequest
-from nestor_mcp.capabilities.code_agent.providers import get_code_agent_capability
+from nestor_mcp.capabilities.llm.capability import LlmCapability
+from nestor_mcp.capabilities.llm.models import LlmExplainRequest
+from nestor_mcp.capabilities.llm.providers import get_llm_capability
 from nestor_mcp.workflows.ha_explain.context import HaExplainContextCollector
 
 EXPERT_DETAIL_KEYWORDS = (
@@ -49,18 +49,18 @@ class HaExplainGraphFactory:
     def __init__(
         self,
         context_collector: HaExplainContextCollector | None = None,
-        code_agent: CodeAgentCapability | None = None,
+        llm: LlmCapability | None = None,
     ) -> None:
         self.context_collector = context_collector or HaExplainContextCollector()
-        self.code_agent = code_agent
+        self.llm = llm
 
     def build(self):
         graph = StateGraph(HaExplainState)
         graph.add_node("collect_context", self.collect_context)
-        graph.add_node("call_code_agent", self.call_code_agent)
+        graph.add_node("call_llm", self.call_llm)
         graph.set_entry_point("collect_context")
-        graph.add_edge("collect_context", "call_code_agent")
-        graph.add_edge("call_code_agent", END)
+        graph.add_edge("collect_context", "call_llm")
+        graph.add_edge("call_llm", END)
         return graph.compile(checkpointer=InMemorySaver())
 
     async def collect_context(self, state: HaExplainState) -> HaExplainState:
@@ -73,10 +73,10 @@ class HaExplainGraphFactory:
             "ha_entities": entities,
         }
 
-    async def call_code_agent(self, state: HaExplainState) -> HaExplainState:
-        agent = self.code_agent or get_code_agent_capability()
-        result = await agent.explain_config(
-            CodeAgentExplainRequest(
+    async def call_llm(self, state: HaExplainState) -> HaExplainState:
+        llm = self.llm or get_llm_capability("ha_explain")
+        result = await llm.explain(
+            LlmExplainRequest(
                 run_id=state["run_id"],
                 question=state["question"],
                 instructions=HA_EXPLAIN_INSTRUCTIONS,

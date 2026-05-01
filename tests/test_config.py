@@ -36,13 +36,13 @@ def test_get_settings_loads_dotenv_before_settings_are_created(
 ) -> None:
     get_settings.cache_clear()
     monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("CODE_AGENT_PROVIDER", raising=False)
-    (tmp_path / ".env").write_text("CODE_AGENT_PROVIDER=claude_code\n", encoding="utf-8")
+    monkeypatch.delenv("HA_EXPLAIN_PROVIDER", raising=False)
+    (tmp_path / ".env").write_text("HA_EXPLAIN_PROVIDER=anthropic_api\n", encoding="utf-8")
 
     try:
         settings = get_settings()
     finally:
         get_settings.cache_clear()
 
-    assert settings.code_agent_provider == "claude_code"
-    assert os.environ["CODE_AGENT_PROVIDER"] == "claude_code"
+    assert settings.ha_explain_provider == "anthropic_api"
+    assert os.environ["HA_EXPLAIN_PROVIDER"] == "anthropic_api"
