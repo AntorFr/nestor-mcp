@@ -81,6 +81,24 @@ def test_repo_context_finds_ha_package_candidates(tmp_path: Path) -> None:
     ]
 
 
+def test_repo_context_finds_music_manager_and_templates(tmp_path: Path) -> None:
+    files = [
+        "packages/functions/music_manager.yaml",
+        "custom_templates/music_functions.jinja",
+        "custom_templates/room_functions.jinja",
+    ]
+    for file in files:
+        target = tmp_path / file
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("content", encoding="utf-8")
+
+    context = RepoContextCapability(tmp_path)
+
+    assert context.find_ha_package_candidates(
+        "Décris la logique des tags pour choisir la musique selon le moment de la journée"
+    ) == files
+
+
 def test_infer_answer_style_defaults_to_user_friendly() -> None:
     assert infer_answer_style("Pourquoi les lampes s'allument dans le salon ?") == "default"
 

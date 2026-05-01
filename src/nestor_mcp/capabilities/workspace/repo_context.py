@@ -28,6 +28,13 @@ FUNCTION_FILE_HINTS = {
     "presence": "packages/functions/presence.yaml",
     "présence": "packages/functions/presence.yaml",
     "notification": "packages/functions/notification.yaml",
+    "musique": "packages/functions/music_manager.yaml",
+    "music": "packages/functions/music_manager.yaml",
+    "playlist": "packages/functions/music_manager.yaml",
+    "playlists": "packages/functions/music_manager.yaml",
+    "media": "packages/functions/music_manager.yaml",
+    "tag": "packages/functions/music_manager.yaml",
+    "tags": "packages/functions/music_manager.yaml",
     "vacances": "packages/functions/vacances_scolaires.yaml",
     "scolaire": "packages/functions/vacances_scolaires.yaml",
     "scolaires": "packages/functions/vacances_scolaires.yaml",
@@ -40,6 +47,27 @@ FUNCTION_FILE_HINTS = {
     "energie": "packages/functions/energy_monitor.yaml",
     "énergie": "packages/functions/energy_monitor.yaml",
     "tv": "packages/functions/tv.yaml",
+}
+
+CONTEXTUAL_FILE_HINTS = {
+    "music": [
+        "packages/functions/music_manager.yaml",
+        "custom_templates/music_functions.jinja",
+        "custom_templates/room_functions.jinja",
+    ],
+}
+
+MUSIC_KEYWORDS = {
+    "musique",
+    "music",
+    "playlist",
+    "playlists",
+    "tag",
+    "tags",
+    "mood",
+    "moment",
+    "journée",
+    "journee",
 }
 
 ROUTINE_FILE_HINTS = {
@@ -73,12 +101,17 @@ class RepoContextCapability:
                 if keyword in normalized and path not in matches:
                     matches.append(path)
 
+        if any(keyword in normalized for keyword in MUSIC_KEYWORDS):
+            for path in CONTEXTUAL_FILE_HINTS["music"]:
+                if path not in matches:
+                    matches.append(path)
+
         if not matches and previous_files:
             matches.extend(previous_files)
 
         return [path for path in matches if (self.repo_path / path).exists()][:6]
 
-    def read_files(self, paths: list[str], max_chars_per_file: int = 18000) -> list[CodeAgentFile]:
+    def read_files(self, paths: list[str], max_chars_per_file: int = 45000) -> list[CodeAgentFile]:
         files = []
         for path in paths:
             target = self.repo_path / path
