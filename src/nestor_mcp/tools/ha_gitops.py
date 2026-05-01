@@ -16,17 +16,34 @@ def register_ha_gitops_tools(mcp: FastMCP) -> None:
         return await HomeAssistantService().get_inventory()
 
     @mcp.tool()
+    async def explain_smart_home_behavior(
+        question: str,
+        run_id: str | None = None,
+    ) -> str:
+        """
+        Use this when the user asks why something happens in their smart home or
+        Home Assistant setup. Examples: why lights turn on or off by themselves,
+        why an automation or script runs, why a sensor changes state, why a room
+        behaves unexpectedly, or how a routine works. This tool inspects the real
+        Home Assistant configuration, current entities and repository files, then
+        explains the behavior in user-friendly French. Use follow-up questions with
+        the same run_id when the user asks for more detail about the same topic.
+        """
+        response = await HaExplainWorkflow().ask(question=question, run_id=run_id)
+        return format_ha_explain_tool_response(response)
+
+    @mcp.tool()
     async def explain_home_assistant_config(
         question: str,
         run_id: str | None = None,
     ) -> str:
         """
-        Use this for questions about why Home Assistant automations, lights, scripts
-        or entities behave a certain way. It explains the real Home Assistant
-        configuration in user-friendly French.
+        Use this for technical questions about the real Home Assistant
+        configuration, automations, scripts, entities, YAML packages or repository
+        files. Prefer explain_smart_home_behavior for normal user questions like
+        "why do the living room lights turn on by themselves?".
         """
-        response = await HaExplainWorkflow().ask(question=question, run_id=run_id)
-        return format_ha_explain_tool_response(response)
+        return await explain_smart_home_behavior(question=question, run_id=run_id)
 
     @mcp.tool()
     async def draft_home_assistant_change(
