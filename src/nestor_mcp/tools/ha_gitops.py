@@ -19,9 +19,14 @@ def register_ha_gitops_tools(mcp: FastMCP) -> None:
     async def explain_home_assistant_config(
         question: str,
         run_id: str | None = None,
-    ) -> HaExplainResponse:
-        """Explain Home Assistant config and continue follow-up questions with a run_id."""
-        return await HaExplainWorkflow().ask(question=question, run_id=run_id)
+    ) -> str:
+        """
+        Use this for questions about why Home Assistant automations, lights, scripts
+        or entities behave a certain way. It explains the real Home Assistant
+        configuration in user-friendly French.
+        """
+        response = await HaExplainWorkflow().ask(question=question, run_id=run_id)
+        return format_ha_explain_tool_response(response)
 
     @mcp.tool()
     async def draft_home_assistant_change(
@@ -62,3 +67,14 @@ def register_ha_gitops_tools(mcp: FastMCP) -> None:
             content=content,
             commit_message=commit_message,
         )
+
+
+def format_ha_explain_tool_response(response: HaExplainResponse) -> str:
+    lines = [response.answer]
+    if response.follow_up_suggestions:
+        lines.append("")
+        lines.append("Questions de suivi possibles :")
+        lines.extend(f"- {suggestion}" for suggestion in response.follow_up_suggestions[:3])
+    lines.append("")
+    lines.append(f"Référence de conversation Nestor : {response.run_id}")
+    return "\n".join(lines)
