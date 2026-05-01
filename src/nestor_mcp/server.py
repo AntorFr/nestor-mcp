@@ -1,4 +1,6 @@
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
@@ -31,16 +33,23 @@ def create_mcp_server() -> FastMCP:
 def create_app(mcp: FastMCP | None = None) -> FastAPI:
     settings = get_settings()
     configure_logging(settings.log_level)
-
-    app = FastAPI(title=settings.mcp_server_name)
     mcp = mcp or create_mcp_server()
+    sse_app = mcp.sse_app()
+    streamable_http_app = mcp.streamable_http_app()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        async with mcp.session_manager.run():
+            yield
+
+    app = FastAPI(title=settings.mcp_server_name, lifespan=lifespan)
 
     @app.get("/health")
     async def health() -> dict[str, str]:
         return {"status": "ok"}
 
-    app.mount("/mcp", mcp.streamable_http_app())
-    app.mount("/sse", mcp.sse_app("/sse"))
+    app.router.routes.extend(sse_app.routes)
+    app.router.routes.extend(streamable_http_app.routes)
 
     return app
 
