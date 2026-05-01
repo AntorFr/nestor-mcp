@@ -19,7 +19,11 @@ logger = logging.getLogger(__name__)
 
 def create_mcp_server() -> FastMCP:
     settings = get_settings()
-    mcp = FastMCP(settings.mcp_server_name)
+    mcp = FastMCP(
+        settings.mcp_server_name,
+        host=settings.mcp_host,
+        port=settings.mcp_port,
+    )
 
     register_ha_gitops_tools(mcp)
     register_newsletter_tools(mcp)

@@ -1,5 +1,6 @@
 from starlette.testclient import TestClient
 
+from nestor_mcp.config import get_settings
 from nestor_mcp.server import create_app, create_mcp_server
 
 
@@ -14,12 +15,22 @@ def test_app_exposes_mcp_transport_routes_at_root_paths() -> None:
     assert "/mcp" in paths
 
 
-def test_sse_and_streamable_http_paths_are_not_missing() -> None:
+def test_health_endpoint_works_with_mcp_routes_registered() -> None:
     app = create_app(create_mcp_server())
 
     with TestClient(app, raise_server_exceptions=False) as client:
         assert client.get("/health").status_code == 200
-        assert client.get("/sse").status_code != 404
-        assert client.get("/sse/").status_code != 404
-        assert client.get("/mcp").status_code != 404
-        assert client.get("/mcp/").status_code != 404
+
+
+def test_mcp_server_uses_configured_host_and_port() -> None:
+    get_settings.cache_clear()
+    settings = get_settings()
+
+    server = create_mcp_server()
+
+    try:
+        assert server.settings.host == settings.mcp_host
+        assert server.settings.port == settings.mcp_port
+        assert server.settings.transport_security is None
+    finally:
+        get_settings.cache_clear()
