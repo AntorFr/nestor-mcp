@@ -1,0 +1,12 @@
+services:
+  nestor-mcp:
+    build: .
+    env_file:
+      - .env
+    ports:
+      - "${MCP_PORT:-8000}:8000"
+    volumes:
+      - ${HOST_GITOPS_REPO_PATH:-./data/home-assistant-config}:${GITOPS_REPO_PATH:-/data/home-assistant-config}
+      - ${HOST_PROPOSALS_PATH:-./data/proposals}:${PROPOSALS_PATH:-/data/nestor-mcp/proposals}
+      - ${HOST_WORKFLOW_RUNS_PATH:-./data/workflow-runs}:${WORKFLOW_RUNS_PATH:-/data/nestor-mcp/workflow-runs}
+    restart: unless-stopped
