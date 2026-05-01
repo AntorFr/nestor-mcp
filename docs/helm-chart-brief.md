@@ -111,8 +111,20 @@ Claude Code peut consommer davantage pendant les analyses. Garder ces valeurs co
 
 ## Notes GitOps
 
-Le service synchronise le repo local avant chaque analyse. Le répertoire monté sur
-`GITOPS_REPO_PATH` peut être vide au premier démarrage : Nestor clonera le repo configuré.
+Le service utilise le clone local existant pendant les analyses pour réduire la latence Assist. Le
+répertoire monté sur `GITOPS_REPO_PATH` peut être vide au premier démarrage : Nestor clonera le repo
+configuré si nécessaire.
+
+Prévoir un CronJob Kubernetes optionnel, activable dans les values, pour maintenir ce clone à jour :
+
+- schedule recommandé : `0 * * * *`
+- image : la même que le serveur Nestor
+- commande : `python -m nestor_mcp.devtools.sync_gitops_repo`
+- volumes/env : mêmes montage `/data` et même fichier `.env` que le serveur
+- droits : même `runAsUser`, `fsGroup` et init/permission model que le pod principal
+
+Ce CronJob fait `git fetch` puis `git pull --ff-only` sur `GITOPS_DEFAULT_BRANCH`. Il refuse de
+synchroniser si le clone contient des changements locaux non commités.
 
 Le workflow actuel est en lecture seule. Les futurs workflows d'édition devront créer une branche et
 un PR vers `master`, sans modification directe de Home Assistant en production.

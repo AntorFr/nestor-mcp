@@ -175,12 +175,15 @@ The read-only Home Assistant explanation workflow is the first LangGraph workflo
 
 It must:
 
-- update the persistent GitOps clone before collecting repo context
+- use the persistent GitOps clone without fetching on every question
 - read Home Assistant only through read-only APIs
 - call `LlmCapability.explain`
 - support follow-up questions through the same `run_id`
 - persist conversation history in `WorkflowStore`
 - never write files, push branches, open PRs, or call Home Assistant write APIs
+
+The GitOps clone is refreshed by `python -m nestor_mcp.devtools.sync_gitops_repo`, intended to run
+from a Kubernetes CronJob on the same `/data` volume as the server.
 
 Default local provider is `HA_EXPLAIN_PROVIDER=mock`.
 

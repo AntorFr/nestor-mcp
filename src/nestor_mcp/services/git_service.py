@@ -22,7 +22,7 @@ class GitService:
     def repo(self) -> Repo:
         return Repo(self.repo_path)
 
-    def ensure_repo_current(self) -> Repo:
+    def ensure_repo_available(self) -> Repo:
         git_dir = self.repo_path / ".git"
         if not self.repo_path.exists() or not git_dir.exists():
             if self.repo_path.exists() and any(self.repo_path.iterdir()):
@@ -36,10 +36,13 @@ class GitService:
                 branch=self.settings.gitops_default_branch,
             )
 
-        repo = self.repo()
+        return self.repo()
+
+    def sync_repo_current(self) -> Repo:
+        repo = self.ensure_repo_available()
         if repo.is_dirty(untracked_files=True):
             raise RuntimeError(
-                "GitOps repository has local changes; refusing to update before analysis"
+                "GitOps repository has local changes; refusing to synchronize"
             )
 
         branch = self.settings.gitops_default_branch
@@ -47,6 +50,9 @@ class GitService:
         repo.git.checkout(branch)
         repo.git.pull("--ff-only", "origin", branch)
         return repo
+
+    def ensure_repo_current(self) -> Repo:
+        return self.sync_repo_current()
 
     def propose_change(self, request: HomeAssistantChangeRequest) -> HomeAssistantChangeResult:
         safe_path = ensure_editable_ha_path(request.path)
@@ -87,7 +93,7 @@ class GitService:
         if not self.settings.github_token:
             raise RuntimeError("GITHUB_TOKEN is required to push a branch")
 
-        repo = self.ensure_repo_current()
+        repo = self.sync_repo_current()
         if branch_name in [head.name for head in repo.heads]:
             raise RuntimeError(f"Local branch already exists: {branch_name}")
 

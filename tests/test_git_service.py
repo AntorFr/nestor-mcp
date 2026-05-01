@@ -52,7 +52,7 @@ def test_git_service_rejects_non_empty_non_repo(tmp_path: Path) -> None:
     service = GitService(repo_path=repo_path)
 
     try:
-        service.ensure_repo_current()
+        service.ensure_repo_available()
     except RuntimeError as exc:
         assert "not a git repository" in str(exc)
     else:
@@ -66,5 +66,16 @@ def test_git_service_accepts_existing_repo(tmp_path: Path) -> None:
     service = GitService(repo_path=repo_path)
 
     repo = service.repo()
+
+    assert repo.working_tree_dir == str(repo_path)
+
+
+def test_git_service_uses_existing_repo_without_syncing(tmp_path: Path) -> None:
+    repo_path = tmp_path / "ha-config"
+    repo_path.mkdir()
+    Repo.init(repo_path)
+    service = GitService(repo_path=repo_path)
+
+    repo = service.ensure_repo_available()
 
     assert repo.working_tree_dir == str(repo_path)

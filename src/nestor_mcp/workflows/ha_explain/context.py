@@ -21,7 +21,7 @@ class HaExplainContextCollector:
         question: str,
         previous_files: list[str] | None = None,
     ) -> tuple[list[CodeAgentFile], list[dict]]:
-        repo = self.git_service.ensure_repo_current()
+        repo = self.git_service.ensure_repo_available()
         if repo.working_tree_dir is None:
             raise RuntimeError("Git repository has no working tree")
         repo_context = RepoContextCapability(Path(repo.working_tree_dir))

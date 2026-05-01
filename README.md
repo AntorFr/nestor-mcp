@@ -53,6 +53,15 @@ docker compose run --rm nestor-mcp python -m nestor_mcp.devtools.explain_ha \
 La réponse par défaut est volontairement non technique. Une question qui demande les détails de
 configuration, les fichiers, le YAML ou les entités active un mode plus expert.
 
+Pour synchroniser le clone GitOps local sans lancer une analyse :
+
+```bash
+python -m nestor_mcp.devtools.sync_gitops_repo
+```
+
+En Kubernetes, cette commande est prévue pour être lancée par un CronJob qui monte le même volume
+`/data` que le serveur.
+
 ## Variables d'environnement
 
 Voir [.env.example](.env.example).

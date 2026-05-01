@@ -6,7 +6,8 @@ Nestor edits Home Assistant through GitOps only. It must never write directly to
 
 - Repository: `AntorFr/Home-AssistantConfig`
 - Base branch: `master`
-- Work model: persistent local clone, refreshed before every analysis with `git fetch` and fast-forward pull.
+- Work model: persistent local clone, refreshed periodically by the GitOps sync CronJob.
+- Read-only explanation workflows use the existing local clone and must not fetch on every question.
 - Output model: branch on the same repository, then pull request to `master`.
 
 ## Package Placement
@@ -70,4 +71,3 @@ Before creating a branch or pull request:
 - verify referenced `entity_id` values against Home Assistant states when possible
 - verify `action` or service calls against Home Assistant services when possible
 - require explicit user confirmation
-
