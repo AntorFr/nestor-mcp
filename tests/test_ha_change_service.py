@@ -2,6 +2,15 @@ from pathlib import Path
 
 import pytest
 
+from nestor_mcp.capabilities.code_agent.capability import CodeAgentCapability
+from nestor_mcp.capabilities.code_agent.models import (
+    CodeAgentExplainRequest,
+    CodeAgentExplainResult,
+    CodeAgentFile,
+    CodeAgentRequest,
+    CodeAgentResult,
+    CodeAgentResultType,
+)
 from nestor_mcp.models.ha_change import HaChangeProposalStatus, ProposedFileChange
 from nestor_mcp.models.home_assistant import HaEntity, HaInventory, HaService
 from nestor_mcp.services.ha_change_service import (
@@ -40,6 +49,75 @@ class FakeHomeAssistantService:
         )
 
 
+class ClarificationAgent(CodeAgentCapability):
+    async def propose_changes(self, request: CodeAgentRequest) -> CodeAgentResult:
+        return CodeAgentResult(
+            type=CodeAgentResultType.needs_clarification,
+            summary="Need details.",
+            questions=["Quel changement exact dois-je produire ?"],
+        )
+
+    async def explain_config(self, request: CodeAgentExplainRequest) -> CodeAgentExplainResult:
+        raise NotImplementedError
+
+
+class ProposedChangeAgent(CodeAgentCapability):
+    async def propose_changes(self, request: CodeAgentRequest) -> CodeAgentResult:
+        assert request.files[0].path == "packages/areas/salon.yaml"
+        return CodeAgentResult(
+            type=CodeAgentResultType.proposed_changes,
+            summary="Ajoute une automation salon.",
+            files=[
+                CodeAgentFile(
+                    path="packages/areas/salon.yaml",
+                    content=(
+                        "automation:\n"
+                        "  - id: salon_test\n"
+                        "    alias: Salon test\n"
+                        "    action:\n"
+                        "      - service: light.turn_off\n"
+                        "        target:\n"
+                        "          entity_id: light.salon_lumieres\n"
+                    ),
+                )
+            ],
+        )
+
+    async def explain_config(self, request: CodeAgentExplainRequest) -> CodeAgentExplainResult:
+        raise NotImplementedError
+
+
+class AnswerAwareAgent(CodeAgentCapability):
+    async def propose_changes(self, request: CodeAgentRequest) -> CodeAgentResult:
+        if not request.user_answers:
+            return CodeAgentResult(
+                type=CodeAgentResultType.needs_clarification,
+                summary="Need answer.",
+                questions=["A quelle heure faut-il éteindre ?"],
+            )
+        return CodeAgentResult(
+            type=CodeAgentResultType.proposed_changes,
+            summary="Ajoute l'extinction demandée.",
+            files=[
+                CodeAgentFile(
+                    path="packages/areas/salon.yaml",
+                    content=(
+                        "automation:\n"
+                        "  - id: salon_extinction\n"
+                        "    alias: Salon extinction\n"
+                        "    action:\n"
+                        "      - service: light.turn_off\n"
+                        "        target:\n"
+                        "          entity_id: light.salon_lumieres\n"
+                    ),
+                )
+            ],
+        )
+
+    async def explain_config(self, request: CodeAgentExplainRequest) -> CodeAgentExplainResult:
+        raise NotImplementedError
+
+
 @pytest.fixture
 def anyio_backend() -> str:
     return "asyncio"
@@ -51,6 +129,7 @@ async def test_draft_infers_area_file_and_waits_for_exact_change(tmp_path: Path)
         git_service=FakeGitService(tmp_path),  # type: ignore[arg-type]
         proposal_store=ProposalStore(tmp_path),
         home_assistant_service=FakeHomeAssistantService(),  # type: ignore[arg-type]
+        code_agent=ClarificationAgent(),
     )
 
     proposal = await service.draft_change("Eteindre les lumieres du salon a minuit")
@@ -67,6 +146,7 @@ async def test_draft_with_content_can_wait_for_confirmation(tmp_path: Path) -> N
         git_service=FakeGitService(tmp_path),  # type: ignore[arg-type]
         proposal_store=ProposalStore(tmp_path),
         home_assistant_service=FakeHomeAssistantService(),  # type: ignore[arg-type]
+        code_agent=ClarificationAgent(),
     )
 
     proposal = await service.draft_change(
@@ -76,6 +156,47 @@ async def test_draft_with_content_can_wait_for_confirmation(tmp_path: Path) -> N
     )
 
     assert proposal.status == HaChangeProposalStatus.awaiting_confirmation
+
+
+@pytest.mark.anyio
+async def test_draft_uses_code_agent_to_prepare_change(tmp_path: Path) -> None:
+    target = tmp_path / "packages/areas/salon.yaml"
+    target.parent.mkdir(parents=True)
+    target.write_text("automation: []\n", encoding="utf-8")
+    service = HaChangeService(
+        git_service=FakeGitService(tmp_path),  # type: ignore[arg-type]
+        proposal_store=ProposalStore(tmp_path),
+        home_assistant_service=FakeHomeAssistantService(),  # type: ignore[arg-type]
+        code_agent=ProposedChangeAgent(),
+    )
+
+    proposal = await service.draft_change("Ajoute une automation salon")
+
+    assert proposal.status == HaChangeProposalStatus.awaiting_confirmation
+    assert proposal.summary == "Ajoute une automation salon."
+    assert proposal.proposed_changes[0].path == "packages/areas/salon.yaml"
+
+
+@pytest.mark.anyio
+async def test_answer_clarification_updates_existing_proposal(tmp_path: Path) -> None:
+    target = tmp_path / "packages/areas/salon.yaml"
+    target.parent.mkdir(parents=True)
+    target.write_text("automation: []\n", encoding="utf-8")
+    store = ProposalStore(tmp_path)
+    service = HaChangeService(
+        git_service=FakeGitService(tmp_path),  # type: ignore[arg-type]
+        proposal_store=store,
+        home_assistant_service=FakeHomeAssistantService(),  # type: ignore[arg-type]
+        code_agent=AnswerAwareAgent(),
+    )
+    proposal = await service.draft_change("Eteindre les lumieres du salon")
+
+    updated = await service.answer_clarification(proposal.id, "A 23h")
+
+    assert updated.id == proposal.id
+    assert updated.status == HaChangeProposalStatus.awaiting_confirmation
+    assert updated.user_answers == ["A 23h"]
+    assert updated.proposed_changes[0].path == "packages/areas/salon.yaml"
 
 
 def test_extract_entity_ids_ignores_icons() -> None:

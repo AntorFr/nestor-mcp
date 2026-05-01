@@ -1,6 +1,9 @@
 import json
 
-from nestor_mcp.capabilities.code_agent.providers import parse_claude_explain_output
+from nestor_mcp.capabilities.code_agent.providers import (
+    parse_claude_change_output,
+    parse_claude_explain_output,
+)
 
 
 def test_parse_claude_explain_output_accepts_direct_json() -> None:
@@ -58,3 +61,30 @@ def test_parse_claude_explain_output_extracts_json_from_text_result() -> None:
 
     assert result.answer == "OK"
     assert result.follow_up_suggestions == ["Approfondir"]
+
+
+def test_parse_claude_change_output_accepts_proposed_files() -> None:
+    result = parse_claude_change_output(
+        json.dumps(
+            {
+                "type": "result",
+                "result": json.dumps(
+                    {
+                        "type": "proposed_changes",
+                        "summary": "Ajoute une automation.",
+                        "questions": [],
+                        "files": [
+                            {
+                                "path": "packages/areas/salon.yaml",
+                                "content": "automation: []\n",
+                            }
+                        ],
+                        "error": None,
+                    }
+                ),
+            }
+        )
+    )
+
+    assert result.type == "proposed_changes"
+    assert result.files[0].path == "packages/areas/salon.yaml"

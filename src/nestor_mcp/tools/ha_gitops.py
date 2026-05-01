@@ -52,7 +52,14 @@ def register_ha_gitops_tools(mcp: FastMCP) -> None:
         content: str | None = None,
         commit_message: str | None = None,
     ) -> HaChangeProposal:
-        """Draft a GitOps Home Assistant change and ask clarification questions if needed."""
+        """
+        Use this when the user asks to change, add, remove or fix a Home Assistant
+        automation, script, helper, package or YAML configuration. This drafts a
+        GitOps proposal only: it may ask clarification questions, prepares file
+        changes with the configured code agent, validates YAML and Home Assistant
+        references, then waits for explicit user confirmation before any branch,
+        push or pull request is created.
+        """
         return await HaChangeService().draft_change(
             user_request=user_request,
             path=path,
@@ -62,8 +69,26 @@ def register_ha_gitops_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     def confirm_home_assistant_change(proposal_id: str) -> HaChangeConfirmationResult:
-        """After explicit user approval, push a branch and open a PR to master."""
+        """
+        Use this only after the user explicitly approves a Home Assistant change
+        proposal. It pushes the prepared changes to a Git branch and opens a pull
+        request to the configured main branch. Never call this for a first request
+        or without explicit approval.
+        """
         return HaChangeService().confirm_change(proposal_id)
+
+    @mcp.tool()
+    async def answer_home_assistant_change_question(
+        proposal_id: str,
+        answer: str,
+    ) -> HaChangeProposal:
+        """
+        Use this when Nestor previously asked a clarification question about a
+        Home Assistant change proposal. Provide the proposal_id and the user's
+        answer. Nestor will update the same proposal, ask more questions if still
+        ambiguous, or prepare validated changes waiting for explicit approval.
+        """
+        return await HaChangeService().answer_clarification(proposal_id, answer)
 
     @mcp.tool()
     def get_home_assistant_change_status(proposal_id: str) -> HaChangeProposal:

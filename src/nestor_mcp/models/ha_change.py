@@ -44,6 +44,7 @@ class HaChangeProposal(StrictBaseModel):
     branch_name: str | None = None
     commit_message: str
     summary: str
+    user_answers: list[str] = []
     proposed_changes: list[ProposedFileChange] = []
     validation_results: list[ValidationResult] = []
     pr_url: str | None = None

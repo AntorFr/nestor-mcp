@@ -48,11 +48,31 @@ class MockCodeAgentCapability(CodeAgentCapability):
 
 class ClaudeCodeCapability(CodeAgentCapability):
     async def propose_changes(self, request: CodeAgentRequest) -> CodeAgentResult:
-        return CodeAgentResult(
-            type=CodeAgentResultType.failed,
-            summary="Claude change proposal is not implemented yet.",
-            error="Only read-only explanation is supported for ClaudeCodeCapability.",
+        settings = get_settings()
+        prompt = build_change_prompt(request)
+        process = await asyncio.create_subprocess_exec(
+            settings.claude_code_command,
+            "-p",
+            prompt,
+            "--output-format",
+            "json",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
+        try:
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(),
+                timeout=settings.ha_gitops_timeout_seconds,
+            )
+        except TimeoutError as exc:
+            process.kill()
+            await process.communicate()
+            raise RuntimeError("Claude Code timed out while proposing changes") from exc
+
+        if process.returncode != 0:
+            raise RuntimeError(stderr.decode("utf-8", errors="replace").strip())
+
+        return parse_claude_change_output(stdout.decode("utf-8", errors="replace"))
 
     async def explain_config(self, request: CodeAgentExplainRequest) -> CodeAgentExplainResult:
         settings = get_settings()
@@ -109,6 +129,36 @@ def build_explain_prompt(request: CodeAgentExplainRequest) -> str:
         "referenced_entities, follow_up_suggestions.\n\n"
         f"{json.dumps(payload, ensure_ascii=False)}"
     )
+
+
+def build_change_prompt(request: CodeAgentRequest) -> str:
+    payload = {
+        "run_id": request.run_id,
+        "user_request": request.user_request,
+        "instructions": request.instructions,
+        "context": request.context,
+        "files": [file.model_dump() for file in request.files],
+        "user_answers": request.user_answers,
+    }
+    return (
+        "Tu es un agent code spécialisé Home Assistant.\n"
+        "Tu dois proposer une modification GitOps sûre, sans pousser, sans créer de branche, "
+        "sans appeler Home Assistant, sans modifier secrets.yaml ni .storage.\n"
+        "Les fichiers fournis sont le contexte autorisé. Si une information manque, pose des "
+        "questions au lieu d'inventer des entités ou des comportements.\n"
+        "Réponds uniquement en JSON valide avec les clés: type, summary, questions, files, error.\n"
+        "type doit valoir needs_clarification, proposed_changes ou failed.\n"
+        "files doit contenir des objets {path, content} avec le contenu complet du fichier cible, "
+        "pas un patch partiel.\n\n"
+        f"{json.dumps(payload, ensure_ascii=False)}"
+    )
+
+
+def parse_claude_change_output(output: str) -> CodeAgentResult:
+    data = json.loads(output)
+    if isinstance(data, dict) and isinstance(data.get("result"), str):
+        data = parse_json_object_from_text(data["result"])
+    return CodeAgentResult.model_validate(data)
 
 
 def parse_claude_explain_output(output: str) -> CodeAgentExplainResult:

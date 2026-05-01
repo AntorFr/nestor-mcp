@@ -62,6 +62,34 @@ python -m nestor_mcp.devtools.sync_gitops_repo
 En Kubernetes, cette commande est prévue pour être lancée par un CronJob qui monte le même volume
 `/data` que le serveur.
 
+## Workflow GitOps Home Assistant
+
+Le workflow de modification suit une barrière de confirmation :
+
+1. `draft_home_assistant_change` analyse la demande, interroge le code agent si nécessaire et
+   prépare une proposition.
+2. `answer_home_assistant_change_question` complète la même proposition si Nestor pose une question
+   de clarification.
+3. `confirm_home_assistant_change` pousse une branche et ouvre une pull request seulement après
+   validation explicite de l'utilisateur.
+
+Le workflow ne modifie pas Home Assistant directement.
+
+Un smoke test fictif permet de vérifier le tool sans appeler Claude Code, GitHub ou Home Assistant :
+
+```bash
+python -m nestor_mcp.devtools.draft_ha_change \
+  "Éteins les lumières du salon à 23h"
+```
+
+Pour tester le chemin avec question de clarification :
+
+```bash
+python -m nestor_mcp.devtools.draft_ha_change \
+  "Éteins les lumières du salon" \
+  --clarify-first
+```
+
 ## Variables d'environnement
 
 Voir [.env.example](.env.example).

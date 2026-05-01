@@ -204,3 +204,15 @@ The provider is expected to return JSON with:
 - `follow_up_suggestions`
 
 Claude Code remains reserved for workflows that need code/config editing, such as HA GitOps.
+
+## 13. HA GitOps Change Workflow
+
+The Home Assistant change workflow must keep a strict confirmation boundary:
+
+- `draft_home_assistant_change` may inspect the repo, read Home Assistant inventory, call the code
+  agent and persist a proposal.
+- `answer_home_assistant_change_question` may enrich the same proposal with user answers and rerun
+  the code agent.
+- `confirm_home_assistant_change` is the only step allowed to push a branch and open a pull request.
+- The code agent must return full file contents, not partial patches.
+- The code agent must never receive GitHub write authority or perform branch/PR operations.
