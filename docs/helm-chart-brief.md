@@ -25,7 +25,12 @@ Probes recommandées :
 
 ## Configuration
 
-Prévoir des valeurs Helm séparées pour config non sensible et secrets.
+L'application charge le fichier `.env` monté dans le répertoire de travail `/app`, puis propage ces
+valeurs dans l'environnement du process sans écraser les variables déjà injectées par Kubernetes.
+Les sous-process comme Claude Code héritent donc aussi des valeurs du `.env`.
+
+Le chart peut monter un fichier `.env` complet via Secret sur `/app/.env`. Les valeurs sensibles
+doivent venir d'un Secret Kubernetes ou d'un values override non commité.
 
 Variables non sensibles :
 
@@ -62,6 +67,11 @@ Deux options acceptables :
 
 Pour le premier déploiement, un PVC unique est suffisant.
 
+Prévoir aussi un volume writable sur `/tmp` lorsque `readOnlyRootFilesystem=true`. L'image définit
+`HOME=/tmp`, `XDG_CACHE_HOME=/tmp/.cache` et `XDG_CONFIG_HOME=/tmp/.config` pour que Claude Code et
+les outils Node/Python disposent d'un espace d'écriture temporaire sans rendre le filesystem racine
+inscriptible.
+
 ## Service et exposition
 
 Créer un `Service` ClusterIP exposant le port `8000`.
@@ -78,8 +88,7 @@ Recommandations :
 
 - ne pas exécuter en privileged
 - `allowPrivilegeEscalation: false`
-- filesystem root idéalement read-only si compatible, avec `/data` et les caches nécessaires en
-  écriture
+- filesystem root idéalement read-only, avec `/data` et `/tmp` en écriture
 - secrets injectés via Kubernetes Secret, pas dans les values commités
 - ressources configurables dans `values.yaml`
 

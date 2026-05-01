@@ -1,8 +1,11 @@
 from functools import lru_cache
 from pathlib import Path
 
+from dotenv import load_dotenv
 from pydantic import AnyHttpUrl, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+ENV_FILE = Path(".env")
 
 
 class Settings(BaseSettings):
@@ -49,6 +52,11 @@ class Settings(BaseSettings):
     claude_code_timeout_seconds: int = Field(default=120, alias="CLAUDE_CODE_TIMEOUT_SECONDS")
 
 
+def load_environment_file() -> None:
+    load_dotenv(ENV_FILE, override=False)
+
+
 @lru_cache
 def get_settings() -> Settings:
+    load_environment_file()
     return Settings()
