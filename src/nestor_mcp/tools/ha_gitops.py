@@ -129,15 +129,16 @@ def register_ha_gitops_tools(mcp: FastMCP) -> None:
         return await HaChangeService().answer_clarification(proposal_id, answer)
 
     @mcp.tool()
-    async def get_home_assistant_change_status(proposal_id: str) -> HaChangeProposal:
+    async def get_home_assistant_change_status(proposal_id: str = "current") -> HaChangeProposal:
         """
         Get the current status of a Home Assistant GitOps change proposal. Use
         this after draft_home_assistant_change returns a proposal with status
         drafting, or before confirming a proposal. If the user asks whether
         there is a change already in progress but does not provide an id, use
         list_home_assistant_changes instead. The special proposal_id values
-        "current", "latest" or "active" return the most recently updated active
-        or confirmed proposal.
+        "current", "latest", "active", "open", "pending", "ongoing" or
+        "in_progress" return the most recently updated active or confirmed
+        proposal.
         """
         service = HaChangeService()
         proposal = service.get_change_status(proposal_id)

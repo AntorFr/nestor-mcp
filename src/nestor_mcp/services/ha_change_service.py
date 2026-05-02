@@ -88,6 +88,17 @@ REUSABLE_PROPOSAL_STATUSES = {
     HaChangeProposalStatus.pr_created,
 }
 
+CURRENT_PROPOSAL_ALIASES = {
+    "active",
+    "current",
+    "en_cours",
+    "in_progress",
+    "latest",
+    "open",
+    "ongoing",
+    "pending",
+}
+
 CANCELLABLE_PROPOSAL_STATUSES = {
     HaChangeProposalStatus.drafting,
     HaChangeProposalStatus.needs_clarification,
@@ -205,7 +216,7 @@ class HaChangeService:
         return proposal
 
     def get_change_status(self, proposal_id: str) -> HaChangeProposal:
-        if proposal_id in {"current", "latest", "active", "en_cours"}:
+        if proposal_id in CURRENT_PROPOSAL_ALIASES:
             proposal = self.latest_reusable_proposal()
             if not proposal:
                 raise FileNotFoundError("No current Home Assistant change proposal")

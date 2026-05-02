@@ -309,6 +309,21 @@ def test_current_status_returns_latest_reusable_proposal(tmp_path: Path) -> None
     assert status.id == first.id
 
 
+def test_open_status_alias_returns_latest_reusable_proposal(tmp_path: Path) -> None:
+    store = ProposalStore(tmp_path)
+    service = HaChangeService(
+        git_service=FakeGitService(tmp_path),  # type: ignore[arg-type]
+        proposal_store=store,
+        home_assistant_service=FakeHomeAssistantService(),  # type: ignore[arg-type]
+        code_agent=ProposedChangeAgent(),
+    )
+    first = service.start_draft_change("Ajoute une automation salon")
+
+    status = service.get_change_status("open")
+
+    assert status.id == first.id
+
+
 def test_cancel_change_marks_pending_proposal_rejected(tmp_path: Path) -> None:
     store = ProposalStore(tmp_path)
     service = HaChangeService(
