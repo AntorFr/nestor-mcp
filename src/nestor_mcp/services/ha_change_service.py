@@ -88,6 +88,12 @@ REUSABLE_PROPOSAL_STATUSES = {
     HaChangeProposalStatus.pr_created,
 }
 
+CANCELLABLE_PROPOSAL_STATUSES = {
+    HaChangeProposalStatus.drafting,
+    HaChangeProposalStatus.needs_clarification,
+    HaChangeProposalStatus.awaiting_confirmation,
+}
+
 
 class HaChangeService:
     def __init__(
@@ -232,6 +238,25 @@ class HaChangeService:
     def latest_reusable_proposal(self) -> HaChangeProposal | None:
         proposals = self.list_reusable_proposals()
         return proposals[0] if proposals else None
+
+    def cancel_change(self, proposal_id: str) -> HaChangeProposal:
+        proposal = self.proposal_store.get(proposal_id)
+        if proposal.status == HaChangeProposalStatus.pr_created:
+            raise RuntimeError(
+                "Cette proposition a déjà une PR. Annule-la côté GitHub pendant la revue."
+            )
+        if proposal.status not in CANCELLABLE_PROPOSAL_STATUSES:
+            raise RuntimeError(f"Proposal cannot be cancelled from status: {proposal.status}")
+        cancelled = proposal.model_copy(
+            update={
+                "status": HaChangeProposalStatus.rejected,
+                "summary": f"Proposition annulée. {proposal.summary}",
+                "questions": [],
+                "updated_at": datetime.now(UTC),
+            }
+        )
+        self.proposal_store.save(cancelled)
+        return cancelled
 
     def find_similar_active_proposal(self, user_request: str) -> HaChangeProposal | None:
         normalized_request = normalize_request(user_request)

@@ -5,6 +5,7 @@ from mcp.server.fastmcp import FastMCP
 
 from nestor_mcp.config import get_settings
 from nestor_mcp.models.ha_change import (
+    HaChangeCancellationResult,
     HaChangeConfirmationResult,
     HaChangeProposal,
     HaChangeProposalList,
@@ -167,6 +168,23 @@ def register_ha_gitops_tools(mcp: FastMCP) -> None:
         return HaChangeProposalList(proposals=proposals, count=len(proposals))
 
     @mcp.tool()
+    def cancel_home_assistant_change(proposal_id: str) -> HaChangeCancellationResult:
+        """
+        Cancel a Home Assistant GitOps change proposal that the user no longer
+        wants, but only before a pull request has been created. Use this when the
+        user asks to cancel, abandon, reject or forget a pending Home Assistant
+        change proposal. Do not use it for proposals with an existing PR; those
+        must be closed in GitHub review.
+        """
+        cancel_background_draft_completion(proposal_id)
+        proposal = HaChangeService().cancel_change(proposal_id)
+        return HaChangeCancellationResult(
+            proposal_id=proposal.id,
+            status=proposal.status,
+            message="Proposition Home Assistant annulée. Aucune branche ni PR n'a été créée.",
+        )
+
+    @mcp.tool()
     async def propose_home_assistant_change(
         user_request: str,
         commit_message: str | None = None,
@@ -191,6 +209,14 @@ def schedule_background_draft_completion(proposal_id: str) -> asyncio.Task:
 def is_background_draft_running(proposal_id: str) -> bool:
     existing = _BACKGROUND_DRAFT_TASKS.get(proposal_id)
     return bool(existing and not existing.done())
+
+
+def cancel_background_draft_completion(proposal_id: str) -> bool:
+    task = _BACKGROUND_DRAFT_TASKS.pop(proposal_id, None)
+    if not task or task.done():
+        return False
+    task.cancel()
+    return True
 
 
 def _handle_background_draft_done(proposal_id: str, task: asyncio.Task) -> None:

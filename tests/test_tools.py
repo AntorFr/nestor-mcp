@@ -71,6 +71,18 @@ def test_ha_change_tools_include_list_current_changes() -> None:
     assert "pending requests" in tool.description
 
 
+def test_ha_change_tools_include_cancel_pending_change() -> None:
+    from mcp.server.fastmcp import FastMCP
+
+    mcp = FastMCP("test", host="0.0.0.0")
+    register_ha_gitops_tools(mcp)
+
+    tool = mcp._tool_manager._tools["cancel_home_assistant_change"]
+
+    assert "Cancel a Home Assistant GitOps change proposal" in tool.description
+    assert "before a pull request has been created" in tool.description
+
+
 def test_ha_config_context_description_warns_to_use_dedicated_tools() -> None:
     from mcp.server.fastmcp import FastMCP
 

@@ -309,6 +309,38 @@ def test_current_status_returns_latest_reusable_proposal(tmp_path: Path) -> None
     assert status.id == first.id
 
 
+def test_cancel_change_marks_pending_proposal_rejected(tmp_path: Path) -> None:
+    store = ProposalStore(tmp_path)
+    service = HaChangeService(
+        git_service=FakeGitService(tmp_path),  # type: ignore[arg-type]
+        proposal_store=store,
+        home_assistant_service=FakeHomeAssistantService(),  # type: ignore[arg-type]
+        code_agent=ProposedChangeAgent(),
+    )
+    proposal = service.start_draft_change("Ajoute une automation salon")
+
+    cancelled = service.cancel_change(proposal.id)
+
+    assert cancelled.status == HaChangeProposalStatus.rejected
+    assert store.get(proposal.id).status == HaChangeProposalStatus.rejected
+    assert service.list_reusable_proposals() == []
+
+
+def test_cancel_change_refuses_pr_created_proposal(tmp_path: Path) -> None:
+    store = ProposalStore(tmp_path)
+    service = HaChangeService(
+        git_service=FakeGitService(tmp_path),  # type: ignore[arg-type]
+        proposal_store=store,
+        home_assistant_service=FakeHomeAssistantService(),  # type: ignore[arg-type]
+        code_agent=ProposedChangeAgent(),
+    )
+    proposal = service.start_draft_change("Ajoute une automation salon")
+    store.save(proposal.model_copy(update={"status": HaChangeProposalStatus.pr_created}))
+
+    with pytest.raises(RuntimeError, match="déjà une PR"):
+        service.cancel_change(proposal.id)
+
+
 @pytest.mark.anyio
 async def test_draft_infers_school_routine_files(tmp_path: Path) -> None:
     children = tmp_path / "packages/routines/children.yaml"

@@ -70,3 +70,9 @@ class HaChangeConfirmationResult(StrictBaseModel):
 class HaChangeProposalList(StrictBaseModel):
     proposals: list[HaChangeProposal]
     count: int
+
+
+class HaChangeCancellationResult(StrictBaseModel):
+    proposal_id: str
+    status: HaChangeProposalStatus
+    message: str

@@ -44,6 +44,7 @@ def test_mcp_server_exposes_only_implemented_tools() -> None:
     assert "draft_home_assistant_change" in tool_names
     assert "get_home_assistant_change_status" in tool_names
     assert "list_home_assistant_changes" in tool_names
+    assert "cancel_home_assistant_change" in tool_names
     assert "search_knowledge" not in tool_names
     assert "summarize_newsletter" not in tool_names
     assert "create_task" not in tool_names
