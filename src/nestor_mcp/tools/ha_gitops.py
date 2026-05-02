@@ -131,14 +131,16 @@ def register_ha_gitops_tools(mcp: FastMCP) -> None:
     @mcp.tool()
     async def get_home_assistant_change_status(proposal_id: str = "current") -> HaChangeProposal:
         """
-        Get the current status of a Home Assistant GitOps change proposal. Use
-        this after draft_home_assistant_change returns a proposal with status
-        drafting, or before confirming a proposal. If the user asks whether
-        there is a change already in progress but does not provide an id, use
-        list_home_assistant_changes instead. The special proposal_id values
-        "current", "latest", "active", "open", "pending", "ongoing" or
-        "in_progress" return the most recently updated active or confirmed
-        proposal.
+        Get details for one specific Home Assistant GitOps change proposal.
+        Use this only when the user provides a concrete proposal_id returned by
+        Nestor, or immediately after draft_home_assistant_change returns a
+        proposal_id with status drafting. Do not use this to answer broad
+        questions like "are there changes in progress?", "list pending changes",
+        "open requests" or "modifications en cours"; use
+        list_home_assistant_changes for those list/overview questions. The
+        fallback proposal_id values "current", "latest", "active", "open",
+        "pending", "ongoing" or "in_progress" return the most recently updated
+        active or confirmed proposal only as a compatibility fallback.
         """
         service = HaChangeService()
         proposal = service.get_change_status(proposal_id)
@@ -151,11 +153,13 @@ def register_ha_gitops_tools(mcp: FastMCP) -> None:
     @mcp.tool()
     async def list_home_assistant_changes() -> HaChangeProposalList:
         """
-        List current Home Assistant GitOps change proposals, including drafts,
-        proposals waiting for clarification, proposals waiting for confirmation,
-        and recently created PRs. Use this when the user asks if there are
-        modifications in progress, pending requests, unconfirmed changes, or a
-        previous PR proposal to reuse.
+        List all current Home Assistant GitOps change proposals known by Nestor.
+        Always use this tool, not get_home_assistant_change_status, when the user
+        asks whether there are changes in progress, pending changes, open
+        requests, unconfirmed proposals, PR proposals, or "demandes/modifications
+        en cours". The result includes drafts, proposals waiting for
+        clarification, proposals waiting for confirmation, and recently created
+        PRs.
         """
         service = HaChangeService()
         proposals = []

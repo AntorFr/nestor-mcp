@@ -67,8 +67,22 @@ def test_ha_change_tools_include_list_current_changes() -> None:
 
     tool = mcp._tool_manager._tools["list_home_assistant_changes"]
 
+    assert "Always use this tool" in tool.description
     assert "modifications in progress" in tool.description
     assert "pending requests" in tool.description
+    assert "demandes/modifications" in tool.description
+
+
+def test_ha_change_status_tool_discourages_list_questions() -> None:
+    from mcp.server.fastmcp import FastMCP
+
+    mcp = FastMCP("test", host="0.0.0.0")
+    register_ha_gitops_tools(mcp)
+
+    tool = mcp._tool_manager._tools["get_home_assistant_change_status"]
+
+    assert "one specific" in tool.description
+    assert "use list_home_assistant_changes" in tool.description
 
 
 def test_ha_change_tools_include_cancel_pending_change() -> None:
