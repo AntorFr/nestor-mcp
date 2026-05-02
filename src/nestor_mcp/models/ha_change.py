@@ -18,6 +18,7 @@ class HomeAssistantChangeResult(StrictBaseModel):
 
 
 class HaChangeProposalStatus(StrEnum):
+    drafting = "drafting"
     needs_clarification = "needs_clarification"
     awaiting_confirmation = "awaiting_confirmation"
     pr_created = "pr_created"

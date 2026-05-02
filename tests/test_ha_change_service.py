@@ -212,6 +212,29 @@ async def test_draft_uses_code_agent_to_prepare_change(tmp_path: Path) -> None:
 
 
 @pytest.mark.anyio
+async def test_start_and_complete_draft_change(tmp_path: Path) -> None:
+    target = tmp_path / "packages/areas/salon.yaml"
+    target.parent.mkdir(parents=True)
+    target.write_text("automation: []\n", encoding="utf-8")
+    store = ProposalStore(tmp_path)
+    service = HaChangeService(
+        git_service=FakeGitService(tmp_path),  # type: ignore[arg-type]
+        proposal_store=store,
+        home_assistant_service=FakeHomeAssistantService(),  # type: ignore[arg-type]
+        code_agent=ProposedChangeAgent(),
+    )
+
+    proposal = service.start_draft_change("Ajoute une automation salon")
+    completed = await service.complete_draft_change(proposal.id)
+
+    assert proposal.status == HaChangeProposalStatus.drafting
+    assert completed.id == proposal.id
+    assert completed.status == HaChangeProposalStatus.awaiting_confirmation
+    assert completed.proposed_changes[0].path == "packages/areas/salon.yaml"
+    assert store.get(proposal.id).status == HaChangeProposalStatus.awaiting_confirmation
+
+
+@pytest.mark.anyio
 async def test_draft_infers_school_routine_files(tmp_path: Path) -> None:
     children = tmp_path / "packages/routines/children.yaml"
     holidays = tmp_path / "packages/functions/vacances_scolaires.yaml"

@@ -209,8 +209,11 @@ Claude Code remains reserved for workflows that need code/config editing, such a
 
 The Home Assistant change workflow must keep a strict confirmation boundary:
 
-- `draft_home_assistant_change` may inspect the repo, read Home Assistant inventory, call the code
-  agent and persist a proposal.
+- `draft_home_assistant_change` must return quickly with a `drafting` proposal and run long code
+  agent work asynchronously.
+- `get_home_assistant_change_status` is used to retrieve the completed proposal before confirmation.
+- The background draft task may inspect the repo, read Home Assistant inventory, call the code agent
+  and persist a proposal.
 - `answer_home_assistant_change_question` may enrich the same proposal with user answers and rerun
   the code agent.
 - `confirm_home_assistant_change` is the only step allowed to push a branch and open a pull request.

@@ -1,11 +1,18 @@
+import asyncio
+import logging
+
 from mcp.server.fastmcp import FastMCP
 
+from nestor_mcp.config import get_settings
 from nestor_mcp.models.ha_change import HaChangeConfirmationResult, HaChangeProposal
 from nestor_mcp.services.ha_change_service import HaChangeService
 from nestor_mcp.services.home_assistant import HomeAssistantService
 from nestor_mcp.services.proposal_store import ProposalStore
 from nestor_mcp.workflows.ha_explain.models import HaExplainResponse
 from nestor_mcp.workflows.ha_explain.workflow import HaExplainWorkflow
+
+logger = logging.getLogger(__name__)
+_BACKGROUND_DRAFT_TASKS: set[asyncio.Task] = set()
 
 
 def register_ha_gitops_tools(mcp: FastMCP) -> None:
@@ -69,17 +76,27 @@ def register_ha_gitops_tools(mcp: FastMCP) -> None:
         """
         Use this when the user asks to change, add, remove or fix a Home Assistant
         automation, script, helper, package or YAML configuration. This drafts a
-        GitOps proposal only: it may ask clarification questions, prepares file
-        changes with the configured code agent, validates YAML and Home Assistant
-        references, then waits for explicit user confirmation before any branch,
-        push or pull request is created. Pass only the user's requested behavior;
-        do not invent YAML content or file paths in the tool arguments.
+        GitOps proposal only. It returns quickly with a proposal_id while Nestor
+        prepares file changes asynchronously with the configured code agent. The
+        user or assistant should call get_home_assistant_change_status with that
+        proposal_id after a few seconds. Nestor waits for explicit user
+        confirmation before any branch, push or pull request is created. Pass only
+        the user's requested behavior; do not invent YAML content or file paths in
+        the tool arguments.
         """
-        return await HaChangeService().draft_change(
+        service = HaChangeService()
+        proposal = service.start_draft_change(
             user_request=user_request,
             commit_message=commit_message,
-            accept_supplied_content=False,
         )
+        task = schedule_background_draft_completion(proposal.id)
+        timeout = get_settings().ha_gitops_assist_timeout_seconds
+        if timeout > 0:
+            try:
+                return await asyncio.wait_for(asyncio.shield(task), timeout=timeout)
+            except TimeoutError:
+                pass
+        return proposal
 
     @mcp.tool()
     def confirm_home_assistant_change(proposal_id: str) -> HaChangeConfirmationResult:
@@ -106,7 +123,11 @@ def register_ha_gitops_tools(mcp: FastMCP) -> None:
 
     @mcp.tool()
     def get_home_assistant_change_status(proposal_id: str) -> HaChangeProposal:
-        """Get the current status of a drafted Home Assistant GitOps change."""
+        """
+        Get the current status of a Home Assistant GitOps change proposal. Use
+        this after draft_home_assistant_change returns a proposal with status
+        drafting, or before confirming a proposal.
+        """
         return ProposalStore().get(proposal_id)
 
     @mcp.tool()
@@ -115,11 +136,25 @@ def register_ha_gitops_tools(mcp: FastMCP) -> None:
         commit_message: str | None = None,
     ) -> HaChangeProposal:
         """Backward-compatible alias for drafting a Home Assistant GitOps change."""
-        return await HaChangeService().draft_change(
+        return await draft_home_assistant_change(
             user_request=user_request,
             commit_message=commit_message,
-            accept_supplied_content=False,
         )
+
+
+def schedule_background_draft_completion(proposal_id: str) -> asyncio.Task:
+    task = asyncio.create_task(HaChangeService().complete_draft_change(proposal_id))
+    _BACKGROUND_DRAFT_TASKS.add(task)
+    task.add_done_callback(_handle_background_draft_done)
+    return task
+
+
+def _handle_background_draft_done(task: asyncio.Task) -> None:
+    _BACKGROUND_DRAFT_TASKS.discard(task)
+    try:
+        task.result()
+    except Exception:
+        logger.exception("Background HA change draft task failed")
 
 
 def format_ha_explain_tool_response(response: HaExplainResponse) -> str:

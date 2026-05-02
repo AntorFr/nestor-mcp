@@ -66,11 +66,12 @@ En Kubernetes, cette commande est prévue pour être lancée par un CronJob qui 
 
 Le workflow de modification suit une barrière de confirmation :
 
-1. `draft_home_assistant_change` analyse la demande, interroge le code agent si nécessaire et
-   prépare une proposition.
-2. `answer_home_assistant_change_question` complète la même proposition si Nestor pose une question
+1. `draft_home_assistant_change` crée rapidement une proposition en statut `drafting`, puis lance
+   l'analyse code agent en arrière-plan.
+2. `get_home_assistant_change_status` permet de récupérer le résultat après quelques secondes.
+3. `answer_home_assistant_change_question` complète la même proposition si Nestor pose une question
    de clarification.
-3. `confirm_home_assistant_change` pousse une branche et ouvre une pull request seulement après
+4. `confirm_home_assistant_change` pousse une branche et ouvre une pull request seulement après
    validation explicite de l'utilisateur.
 
 Le workflow ne modifie pas Home Assistant directement.

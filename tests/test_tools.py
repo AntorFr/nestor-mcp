@@ -55,6 +55,8 @@ def test_ha_change_tool_does_not_accept_raw_yaml_content() -> None:
     assert "user_request" in properties
     assert "content" not in properties
     assert "path" not in properties
+    assert "returns quickly" in tool.description
+    assert "get_home_assistant_change_status" in tool.description
 
 
 def test_ha_config_context_description_warns_to_use_dedicated_tools() -> None:

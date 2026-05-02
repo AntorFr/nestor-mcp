@@ -8,11 +8,7 @@ from mcp.server.fastmcp import FastMCP
 
 from nestor_mcp.config import get_settings
 from nestor_mcp.logging_config import configure_logging
-from nestor_mcp.tools.activities import register_activity_tools
 from nestor_mcp.tools.ha_gitops import register_ha_gitops_tools
-from nestor_mcp.tools.knowledge import register_knowledge_tools
-from nestor_mcp.tools.newsletter import register_newsletter_tools
-from nestor_mcp.tools.tasks import register_task_tools
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +22,6 @@ def create_mcp_server() -> FastMCP:
     )
 
     register_ha_gitops_tools(mcp)
-    register_newsletter_tools(mcp)
-    register_knowledge_tools(mcp)
-    register_task_tools(mcp)
-    register_activity_tools(mcp)
 
     return mcp
 

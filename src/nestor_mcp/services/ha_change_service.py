@@ -102,12 +102,14 @@ class HaChangeService:
         content: str | None = None,
         commit_message: str | None = None,
         accept_supplied_content: bool = True,
+        proposal_id: str | None = None,
+        branch_name: str | None = None,
     ) -> HaChangeProposal:
         self.git_service.ensure_repo_current()
         inventory = await self.try_get_inventory()
         target_files = self.resolve_target_files(user_request, path)
-        proposal_id = str(uuid4())
-        branch_name = slugify_branch(f"{user_request}-{proposal_id[:8]}")
+        proposal_id = proposal_id or str(uuid4())
+        branch_name = branch_name or slugify_branch(f"{user_request}-{proposal_id[:8]}")
         agent_result: CodeAgentResult | None = None
         if path and content and accept_supplied_content:
             changes = [ProposedFileChange(path=path, content=content)]
@@ -154,6 +156,55 @@ class HaChangeService:
         )
         self.proposal_store.save(proposal)
         return proposal
+
+    def start_draft_change(
+        self,
+        user_request: str,
+        commit_message: str | None = None,
+    ) -> HaChangeProposal:
+        proposal_id = str(uuid4())
+        proposal = HaChangeProposal(
+            id=proposal_id,
+            user_request=user_request,
+            status=HaChangeProposalStatus.drafting,
+            questions=[],
+            target_files=self.resolve_target_files(user_request),
+            branch_name=slugify_branch(f"{user_request}-{proposal_id[:8]}"),
+            commit_message=commit_message or f"Update Home Assistant config: {user_request[:72]}",
+            summary=(
+                "Préparation de la proposition GitOps en cours. "
+                "Redemande le statut avec cette référence dans quelques secondes."
+            ),
+            user_answers=[],
+            proposed_changes=[],
+            validation_results=[],
+        )
+        self.proposal_store.save(proposal)
+        return proposal
+
+    async def complete_draft_change(self, proposal_id: str) -> HaChangeProposal:
+        proposal = self.proposal_store.get(proposal_id)
+        try:
+            return await self.draft_change(
+                user_request=proposal.user_request,
+                commit_message=proposal.commit_message,
+                accept_supplied_content=False,
+                proposal_id=proposal.id,
+                branch_name=proposal.branch_name,
+            )
+        except Exception as exc:
+            failed = proposal.model_copy(
+                update={
+                    "status": HaChangeProposalStatus.needs_clarification,
+                    "summary": "La génération de la proposition a échoué.",
+                    "questions": [
+                        "La génération automatique a échoué. Peux-tu reformuler ou préciser "
+                        f"la demande ? Détail technique : {exc}"
+                    ],
+                }
+            )
+            self.proposal_store.save(failed)
+            return failed
 
     def resolve_target_files(self, user_request: str, path: str | None = None) -> list[str]:
         inferred = self.infer_target_files(user_request)

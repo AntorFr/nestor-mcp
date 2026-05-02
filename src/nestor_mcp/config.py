@@ -60,6 +60,10 @@ class Settings(BaseSettings):
     ha_explain_timeout_seconds: int = Field(default=20, alias="HA_EXPLAIN_TIMEOUT_SECONDS")
     ha_gitops_provider: str | None = Field(default=None, alias="HA_GITOPS_PROVIDER")
     ha_gitops_timeout_seconds: int = Field(default=180, alias="HA_GITOPS_TIMEOUT_SECONDS")
+    ha_gitops_assist_timeout_seconds: int = Field(
+        default=8,
+        alias="HA_GITOPS_ASSIST_TIMEOUT_SECONDS",
+    )
 
     anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
     claude_code_command: str = Field(default="claude", alias="CLAUDE_CODE_COMMAND")
