@@ -4,15 +4,19 @@ import logging
 from mcp.server.fastmcp import FastMCP
 
 from nestor_mcp.config import get_settings
-from nestor_mcp.models.ha_change import HaChangeConfirmationResult, HaChangeProposal
+from nestor_mcp.models.ha_change import (
+    HaChangeConfirmationResult,
+    HaChangeProposal,
+    HaChangeProposalList,
+    HaChangeProposalStatus,
+)
 from nestor_mcp.services.ha_change_service import HaChangeService
 from nestor_mcp.services.home_assistant import HomeAssistantService
-from nestor_mcp.services.proposal_store import ProposalStore
 from nestor_mcp.workflows.ha_explain.models import HaExplainResponse
 from nestor_mcp.workflows.ha_explain.workflow import HaExplainWorkflow
 
 logger = logging.getLogger(__name__)
-_BACKGROUND_DRAFT_TASKS: set[asyncio.Task] = set()
+_BACKGROUND_DRAFT_TASKS: dict[str, asyncio.Task] = {}
 
 
 def register_ha_gitops_tools(mcp: FastMCP) -> None:
@@ -89,6 +93,8 @@ def register_ha_gitops_tools(mcp: FastMCP) -> None:
             user_request=user_request,
             commit_message=commit_message,
         )
+        if proposal.status != HaChangeProposalStatus.drafting:
+            return proposal
         task = schedule_background_draft_completion(proposal.id)
         timeout = get_settings().ha_gitops_assist_timeout_seconds
         if timeout > 0:
@@ -122,13 +128,43 @@ def register_ha_gitops_tools(mcp: FastMCP) -> None:
         return await HaChangeService().answer_clarification(proposal_id, answer)
 
     @mcp.tool()
-    def get_home_assistant_change_status(proposal_id: str) -> HaChangeProposal:
+    async def get_home_assistant_change_status(proposal_id: str) -> HaChangeProposal:
         """
         Get the current status of a Home Assistant GitOps change proposal. Use
         this after draft_home_assistant_change returns a proposal with status
-        drafting, or before confirming a proposal.
+        drafting, or before confirming a proposal. If the user asks whether
+        there is a change already in progress but does not provide an id, use
+        list_home_assistant_changes instead. The special proposal_id values
+        "current", "latest" or "active" return the most recently updated active
+        or confirmed proposal.
         """
-        return ProposalStore().get(proposal_id)
+        service = HaChangeService()
+        proposal = service.get_change_status(proposal_id)
+        if proposal.status == HaChangeProposalStatus.drafting and (
+            not is_background_draft_running(proposal.id) or service.is_stale_draft(proposal)
+        ):
+            schedule_background_draft_completion(proposal.id)
+        return proposal
+
+    @mcp.tool()
+    async def list_home_assistant_changes() -> HaChangeProposalList:
+        """
+        List current Home Assistant GitOps change proposals, including drafts,
+        proposals waiting for clarification, proposals waiting for confirmation,
+        and recently created PRs. Use this when the user asks if there are
+        modifications in progress, pending requests, unconfirmed changes, or a
+        previous PR proposal to reuse.
+        """
+        service = HaChangeService()
+        proposals = []
+        for proposal in service.list_reusable_proposals():
+            refreshed = service.get_change_status(proposal.id)
+            if refreshed.status == HaChangeProposalStatus.drafting and (
+                not is_background_draft_running(refreshed.id) or service.is_stale_draft(refreshed)
+            ):
+                schedule_background_draft_completion(refreshed.id)
+            proposals.append(refreshed)
+        return HaChangeProposalList(proposals=proposals, count=len(proposals))
 
     @mcp.tool()
     async def propose_home_assistant_change(
@@ -143,14 +179,23 @@ def register_ha_gitops_tools(mcp: FastMCP) -> None:
 
 
 def schedule_background_draft_completion(proposal_id: str) -> asyncio.Task:
+    existing = _BACKGROUND_DRAFT_TASKS.get(proposal_id)
+    if existing and not existing.done():
+        return existing
     task = asyncio.create_task(HaChangeService().complete_draft_change(proposal_id))
-    _BACKGROUND_DRAFT_TASKS.add(task)
-    task.add_done_callback(_handle_background_draft_done)
+    _BACKGROUND_DRAFT_TASKS[proposal_id] = task
+    task.add_done_callback(lambda done_task: _handle_background_draft_done(proposal_id, done_task))
     return task
 
 
-def _handle_background_draft_done(task: asyncio.Task) -> None:
-    _BACKGROUND_DRAFT_TASKS.discard(task)
+def is_background_draft_running(proposal_id: str) -> bool:
+    existing = _BACKGROUND_DRAFT_TASKS.get(proposal_id)
+    return bool(existing and not existing.done())
+
+
+def _handle_background_draft_done(proposal_id: str, task: asyncio.Task) -> None:
+    if _BACKGROUND_DRAFT_TASKS.get(proposal_id) is task:
+        _BACKGROUND_DRAFT_TASKS.pop(proposal_id, None)
     try:
         task.result()
     except Exception:

@@ -1,6 +1,13 @@
+from datetime import UTC, datetime
 from enum import StrEnum
 
+from pydantic import Field
+
 from nestor_mcp.models.common import StrictBaseModel
+
+
+def utc_now() -> datetime:
+    return datetime.now(UTC)
 
 
 class HomeAssistantChangeRequest(StrictBaseModel):
@@ -49,6 +56,8 @@ class HaChangeProposal(StrictBaseModel):
     proposed_changes: list[ProposedFileChange] = []
     validation_results: list[ValidationResult] = []
     pr_url: str | None = None
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class HaChangeConfirmationResult(StrictBaseModel):
@@ -56,3 +65,8 @@ class HaChangeConfirmationResult(StrictBaseModel):
     branch_name: str
     commit_sha: str
     pr_url: str
+
+
+class HaChangeProposalList(StrictBaseModel):
+    proposals: list[HaChangeProposal]
+    count: int

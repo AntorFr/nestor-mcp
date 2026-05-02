@@ -64,6 +64,14 @@ class Settings(BaseSettings):
         default=8,
         alias="HA_GITOPS_ASSIST_TIMEOUT_SECONDS",
     )
+    ha_gitops_draft_stale_seconds: int = Field(
+        default=120,
+        alias="HA_GITOPS_DRAFT_STALE_SECONDS",
+    )
+    ha_gitops_draft_expire_seconds: int = Field(
+        default=1800,
+        alias="HA_GITOPS_DRAFT_EXPIRE_SECONDS",
+    )
 
     anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
     claude_code_command: str = Field(default="claude", alias="CLAUDE_CODE_COMMAND")

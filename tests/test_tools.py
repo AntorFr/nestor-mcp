@@ -59,6 +59,18 @@ def test_ha_change_tool_does_not_accept_raw_yaml_content() -> None:
     assert "get_home_assistant_change_status" in tool.description
 
 
+def test_ha_change_tools_include_list_current_changes() -> None:
+    from mcp.server.fastmcp import FastMCP
+
+    mcp = FastMCP("test", host="0.0.0.0")
+    register_ha_gitops_tools(mcp)
+
+    tool = mcp._tool_manager._tools["list_home_assistant_changes"]
+
+    assert "modifications in progress" in tool.description
+    assert "pending requests" in tool.description
+
+
 def test_ha_config_context_description_warns_to_use_dedicated_tools() -> None:
     from mcp.server.fastmcp import FastMCP
 

@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 from nestor_mcp.config import get_settings
@@ -12,6 +13,7 @@ class ProposalStore:
     def save(self, proposal: HaChangeProposal) -> None:
         self.path.mkdir(parents=True, exist_ok=True)
         proposal_path = self.path / f"{proposal.id}.json"
+        proposal = proposal.model_copy(update={"updated_at": datetime.now(UTC)})
         proposal_path.write_text(proposal.model_dump_json(indent=2), encoding="utf-8")
 
     def get(self, proposal_id: str) -> HaChangeProposal:

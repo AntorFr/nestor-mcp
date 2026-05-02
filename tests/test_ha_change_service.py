@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -232,6 +233,80 @@ async def test_start_and_complete_draft_change(tmp_path: Path) -> None:
     assert completed.status == HaChangeProposalStatus.awaiting_confirmation
     assert completed.proposed_changes[0].path == "packages/areas/salon.yaml"
     assert store.get(proposal.id).status == HaChangeProposalStatus.awaiting_confirmation
+
+
+@pytest.mark.anyio
+async def test_start_draft_reuses_similar_active_proposal(tmp_path: Path) -> None:
+    store = ProposalStore(tmp_path)
+    service = HaChangeService(
+        git_service=FakeGitService(tmp_path),  # type: ignore[arg-type]
+        proposal_store=store,
+        home_assistant_service=FakeHomeAssistantService(),  # type: ignore[arg-type]
+        code_agent=ProposedChangeAgent(),
+    )
+
+    first = service.start_draft_change("Ajoute une automatisation dans le salon")
+    second = service.start_draft_change("Ajoute une automation salon")
+
+    assert second.id == first.id
+    assert len(store.list()) == 1
+
+
+@pytest.mark.anyio
+async def test_start_draft_reuses_confirmed_proposal(tmp_path: Path) -> None:
+    store = ProposalStore(tmp_path)
+    service = HaChangeService(
+        git_service=FakeGitService(tmp_path),  # type: ignore[arg-type]
+        proposal_store=store,
+        home_assistant_service=FakeHomeAssistantService(),  # type: ignore[arg-type]
+        code_agent=ProposedChangeAgent(),
+    )
+    first = service.start_draft_change("Ajoute une automatisation dans le salon")
+    store.save(first.model_copy(update={"status": HaChangeProposalStatus.pr_created}))
+
+    second = service.start_draft_change("Ajoute une automation salon")
+
+    assert second.id == first.id
+    assert second.status == HaChangeProposalStatus.pr_created
+
+
+def test_expired_draft_is_marked_for_clarification(tmp_path: Path) -> None:
+    store = ProposalStore(tmp_path)
+    service = HaChangeService(
+        git_service=FakeGitService(tmp_path),  # type: ignore[arg-type]
+        proposal_store=store,
+        home_assistant_service=FakeHomeAssistantService(),  # type: ignore[arg-type]
+        code_agent=ProposedChangeAgent(),
+    )
+    proposal = service.start_draft_change("Ajoute une automation salon")
+    stale_time = datetime.now(UTC) - timedelta(
+        seconds=service.settings.ha_gitops_draft_expire_seconds + 1
+    )
+    expired = proposal.model_copy(update={"updated_at": stale_time})
+    (tmp_path / f"{proposal.id}.json").write_text(
+        expired.model_dump_json(indent=2),
+        encoding="utf-8",
+    )
+
+    status = service.get_change_status(proposal.id)
+
+    assert status.status == HaChangeProposalStatus.needs_clarification
+    assert status.questions
+
+
+def test_current_status_returns_latest_reusable_proposal(tmp_path: Path) -> None:
+    store = ProposalStore(tmp_path)
+    service = HaChangeService(
+        git_service=FakeGitService(tmp_path),  # type: ignore[arg-type]
+        proposal_store=store,
+        home_assistant_service=FakeHomeAssistantService(),  # type: ignore[arg-type]
+        code_agent=ProposedChangeAgent(),
+    )
+    first = service.start_draft_change("Ajoute une automation salon")
+
+    status = service.get_change_status("current")
+
+    assert status.id == first.id
 
 
 @pytest.mark.anyio

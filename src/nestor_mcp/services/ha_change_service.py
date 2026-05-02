@@ -1,4 +1,7 @@
 import re
+import unicodedata
+from datetime import UTC, datetime
+from difflib import SequenceMatcher
 from pathlib import Path
 from uuid import uuid4
 
@@ -76,6 +79,13 @@ ROUTINE_FILE_HINTS = {
     "école": "packages/routines/children.yaml",
     "rappel": "packages/routines/children.yaml",
     "travail": "packages/routines/work.yaml",
+}
+
+REUSABLE_PROPOSAL_STATUSES = {
+    HaChangeProposalStatus.drafting,
+    HaChangeProposalStatus.needs_clarification,
+    HaChangeProposalStatus.awaiting_confirmation,
+    HaChangeProposalStatus.pr_created,
 }
 
 
@@ -162,7 +172,11 @@ class HaChangeService:
         user_request: str,
         commit_message: str | None = None,
     ) -> HaChangeProposal:
+        existing = self.find_similar_active_proposal(user_request)
+        if existing:
+            return existing
         proposal_id = str(uuid4())
+        now = datetime.now(UTC)
         proposal = HaChangeProposal(
             id=proposal_id,
             user_request=user_request,
@@ -178,9 +192,72 @@ class HaChangeService:
             user_answers=[],
             proposed_changes=[],
             validation_results=[],
+            created_at=now,
+            updated_at=now,
         )
         self.proposal_store.save(proposal)
         return proposal
+
+    def get_change_status(self, proposal_id: str) -> HaChangeProposal:
+        if proposal_id in {"current", "latest", "active", "en_cours"}:
+            proposal = self.latest_reusable_proposal()
+            if not proposal:
+                raise FileNotFoundError("No current Home Assistant change proposal")
+            proposal_id = proposal.id
+        proposal = self.proposal_store.get(proposal_id)
+        if not self.is_expired_draft(proposal):
+            return proposal
+        expired = proposal.model_copy(
+            update={
+                "status": HaChangeProposalStatus.needs_clarification,
+                "summary": "La génération de la proposition a été interrompue.",
+                "questions": [
+                    "La génération a été interrompue avant de produire une proposition. "
+                    "Veux-tu que je relance cette demande ?"
+                ],
+                "updated_at": datetime.now(UTC),
+            }
+        )
+        self.proposal_store.save(expired)
+        return expired
+
+    def list_reusable_proposals(self) -> list[HaChangeProposal]:
+        proposals = [
+            proposal
+            for proposal in self.proposal_store.list()
+            if proposal.status in REUSABLE_PROPOSAL_STATUSES
+        ]
+        return sorted(proposals, key=lambda proposal: proposal.updated_at, reverse=True)
+
+    def latest_reusable_proposal(self) -> HaChangeProposal | None:
+        proposals = self.list_reusable_proposals()
+        return proposals[0] if proposals else None
+
+    def find_similar_active_proposal(self, user_request: str) -> HaChangeProposal | None:
+        normalized_request = normalize_request(user_request)
+        target_files = set(self.resolve_target_files(user_request))
+        candidates = self.list_reusable_proposals()
+        for proposal in candidates:
+            proposal_request = normalize_request(proposal.user_request)
+            if proposal_request == normalized_request:
+                return proposal
+            similarity = SequenceMatcher(None, normalized_request, proposal_request).ratio()
+            overlapping_targets = bool(target_files.intersection(proposal.target_files))
+            if similarity >= 0.88 or (overlapping_targets and similarity >= 0.72):
+                return proposal
+        return None
+
+    def is_expired_draft(self, proposal: HaChangeProposal) -> bool:
+        if proposal.status != HaChangeProposalStatus.drafting:
+            return False
+        age_seconds = (datetime.now(UTC) - proposal.updated_at).total_seconds()
+        return age_seconds > self.settings.ha_gitops_draft_expire_seconds
+
+    def is_stale_draft(self, proposal: HaChangeProposal) -> bool:
+        if proposal.status != HaChangeProposalStatus.drafting:
+            return False
+        age_seconds = (datetime.now(UTC) - proposal.updated_at).total_seconds()
+        return age_seconds > self.settings.ha_gitops_draft_stale_seconds
 
     async def complete_draft_change(self, proposal_id: str) -> HaChangeProposal:
         proposal = self.proposal_store.get(proposal_id)
@@ -201,6 +278,7 @@ class HaChangeService:
                         "La génération automatique a échoué. Peux-tu reformuler ou préciser "
                         f"la demande ? Détail technique : {exc}"
                     ],
+                    "updated_at": datetime.now(UTC),
                 }
             )
             self.proposal_store.save(failed)
@@ -492,6 +570,13 @@ def extract_entity_ids(content: str) -> set[str]:
         if match.split(".", 1)[0] not in excluded_domains
     }
 
+
+def normalize_request(value: str) -> str:
+    value = unicodedata.normalize("NFKD", value)
+    value = "".join(char for char in value if not unicodedata.combining(char))
+    value = value.lower()
+    value = re.sub(r"[^a-z0-9]+", " ", value)
+    return " ".join(value.split())
 
 
 def added_lines_from_diff(diff: str | None) -> str:
