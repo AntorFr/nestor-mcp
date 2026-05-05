@@ -73,6 +73,19 @@ class Settings(BaseSettings):
         alias="HA_GITOPS_DRAFT_EXPIRE_SECONDS",
     )
 
+    ha_retrieval_embeddings_enabled: bool = Field(
+        default=True,
+        alias="HA_RETRIEVAL_EMBEDDINGS_ENABLED",
+    )
+    ha_retrieval_embedding_model: str = Field(
+        default="intfloat/multilingual-e5-small",
+        alias="HA_RETRIEVAL_EMBEDDING_MODEL",
+    )
+    ha_retrieval_lexical_threshold: float = Field(
+        default=5.0,
+        alias="HA_RETRIEVAL_LEXICAL_THRESHOLD",
+    )
+
     anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
     claude_code_command: str = Field(default="claude", alias="CLAUDE_CODE_COMMAND")
     claude_code_timeout_seconds: int = Field(default=120, alias="CLAUDE_CODE_TIMEOUT_SECONDS")

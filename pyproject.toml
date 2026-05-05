@@ -27,6 +27,9 @@ dev = [
   "pytest>=8.0",
   "ruff>=0.5",
 ]
+embeddings = [
+  "fastembed>=0.4",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

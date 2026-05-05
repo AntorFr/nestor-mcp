@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -6,6 +7,7 @@ import uvicorn
 from fastapi import FastAPI
 from mcp.server.fastmcp import FastMCP
 
+from nestor_mcp.capabilities.workspace.repo_context import _shared_ranker
 from nestor_mcp.config import get_settings
 from nestor_mcp.logging_config import configure_logging
 from nestor_mcp.tools.ha_gitops import register_ha_gitops_tools
@@ -35,6 +37,11 @@ def create_app(mcp: FastMCP | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        ranker = _shared_ranker()
+        if ranker is not None and hasattr(ranker, "warmup"):
+            logger.info("Warming up retrieval embedding model...")
+            ok = await asyncio.to_thread(ranker.warmup)
+            logger.info("Embedding model warmup: %s", "ok" if ok else "skipped (unavailable)")
         async with mcp.session_manager.run():
             yield
 

@@ -1,115 +1,44 @@
+from functools import lru_cache
 from pathlib import Path
 
 from nestor_mcp.capabilities.code_agent.models import CodeAgentFile
+from nestor_mcp.capabilities.workspace.embedding_ranker import (
+    EmbeddingRanker,
+    FastembedRanker,
+)
+from nestor_mcp.capabilities.workspace.ha_retriever import HaRetriever
+from nestor_mcp.config import get_settings
 
-AREA_FILE_HINTS = {
-    "salon": "packages/areas/salon.yaml",
-    "cuisine": "packages/areas/cuisine.yaml",
-    "bureau": "packages/areas/bureau.yaml",
-    "garage": "packages/areas/garage.yaml",
-    "jardin": "packages/areas/jardin.yaml",
-    "piscine": "packages/areas/piscine.yaml",
-    "buanderie": "packages/areas/buanderie.yaml",
-    "salle a manger": "packages/areas/salle_a_manger.yaml",
-    "salle à manger": "packages/areas/salle_a_manger.yaml",
-    "chambre parent": "packages/areas/chambre_parent.yaml",
-    "chambre timothee": "packages/areas/chambre_timothee.yaml",
-    "chambre timothée": "packages/areas/chambre_timothee.yaml",
-    "chambre emilie": "packages/areas/chambre_emilie.yaml",
-    "chambre émilie": "packages/areas/chambre_emilie.yaml",
-}
 
-FUNCTION_FILE_HINTS = {
-    "lumiere": "packages/functions/lights.yaml",
-    "lumière": "packages/functions/lights.yaml",
-    "lumieres": "packages/functions/lights.yaml",
-    "lumières": "packages/functions/lights.yaml",
-    "chauffage": "packages/functions/heating.yaml",
-    "presence": "packages/functions/presence.yaml",
-    "présence": "packages/functions/presence.yaml",
-    "notification": "packages/functions/notification.yaml",
-    "musique": "packages/functions/music_manager.yaml",
-    "music": "packages/functions/music_manager.yaml",
-    "playlist": "packages/functions/music_manager.yaml",
-    "playlists": "packages/functions/music_manager.yaml",
-    "media": "packages/functions/music_manager.yaml",
-    "tag": "packages/functions/music_manager.yaml",
-    "tags": "packages/functions/music_manager.yaml",
-    "vacances": "packages/functions/vacances_scolaires.yaml",
-    "scolaire": "packages/functions/vacances_scolaires.yaml",
-    "scolaires": "packages/functions/vacances_scolaires.yaml",
-    "jour ferie": "packages/functions/vacances_scolaires.yaml",
-    "jour férié": "packages/functions/vacances_scolaires.yaml",
-    "jours feries": "packages/functions/vacances_scolaires.yaml",
-    "jours fériés": "packages/functions/vacances_scolaires.yaml",
-    "securite": "packages/functions/securtity_system.yaml",
-    "sécurité": "packages/functions/securtity_system.yaml",
-    "energie": "packages/functions/energy_monitor.yaml",
-    "énergie": "packages/functions/energy_monitor.yaml",
-    "tv": "packages/functions/tv.yaml",
-}
-
-CONTEXTUAL_FILE_HINTS = {
-    "music": [
-        "packages/functions/music_manager.yaml",
-        "custom_templates/music_functions.jinja",
-        "custom_templates/room_functions.jinja",
-    ],
-}
-
-MUSIC_KEYWORDS = {
-    "musique",
-    "music",
-    "playlist",
-    "playlists",
-    "tag",
-    "tags",
-    "mood",
-    "moment",
-    "journée",
-    "journee",
-}
-
-ROUTINE_FILE_HINTS = {
-    "routine": "packages/routines/day.yaml",
-    "matin": "packages/routines/day.yaml",
-    "soir": "packages/routines/day.yaml",
-    "nuit": "packages/routines/day.yaml",
-    "absence": "packages/routines/away.yaml",
-    "enfant": "packages/routines/children.yaml",
-    "enfants": "packages/routines/children.yaml",
-    "ecole": "packages/routines/children.yaml",
-    "école": "packages/routines/children.yaml",
-    "rappel": "packages/routines/children.yaml",
-    "travail": "packages/routines/work.yaml",
-}
+@lru_cache(maxsize=1)
+def _shared_ranker() -> EmbeddingRanker | None:
+    settings = get_settings()
+    if not settings.ha_retrieval_embeddings_enabled:
+        return None
+    return FastembedRanker(model_name=settings.ha_retrieval_embedding_model)
 
 
 class RepoContextCapability:
-    def __init__(self, repo_path: Path) -> None:
+    def __init__(
+        self,
+        repo_path: Path,
+        embedding_ranker: EmbeddingRanker | None | object = ...,
+    ) -> None:
         self.repo_path = repo_path
+        settings = get_settings()
+        ranker = embedding_ranker if embedding_ranker is not ... else _shared_ranker()
+        self.retriever = HaRetriever(
+            repo_path,
+            embedding_ranker=ranker,  # type: ignore[arg-type]
+            lexical_threshold=settings.ha_retrieval_lexical_threshold,
+        )
 
     def find_ha_package_candidates(
         self,
         question: str,
         previous_files: list[str] | None = None,
     ) -> list[str]:
-        normalized = question.lower()
-        matches: list[str] = []
-        for hints in (AREA_FILE_HINTS, FUNCTION_FILE_HINTS, ROUTINE_FILE_HINTS):
-            for keyword, path in hints.items():
-                if keyword in normalized and path not in matches:
-                    matches.append(path)
-
-        if any(keyword in normalized for keyword in MUSIC_KEYWORDS):
-            for path in CONTEXTUAL_FILE_HINTS["music"]:
-                if path not in matches:
-                    matches.append(path)
-
-        if not matches and previous_files:
-            matches.extend(previous_files)
-
-        return [path for path in matches if (self.repo_path / path).exists()][:6]
+        return self.retriever.retrieve(question, previous_files)
 
     def read_files(self, paths: list[str], max_chars_per_file: int = 45000) -> list[CodeAgentFile]:
         files = []
