@@ -78,7 +78,7 @@ class Settings(BaseSettings):
         alias="HA_RETRIEVAL_EMBEDDINGS_ENABLED",
     )
     ha_retrieval_embedding_model: str = Field(
-        default="intfloat/multilingual-e5-small",
+        default="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
         alias="HA_RETRIEVAL_EMBEDDING_MODEL",
     )
     ha_retrieval_lexical_threshold: float = Field(

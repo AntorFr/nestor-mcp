@@ -7,7 +7,7 @@ ENV HOME=/tmp
 ENV XDG_CACHE_HOME=/tmp/.cache
 ENV XDG_CONFIG_HOME=/tmp/.config
 ENV FASTEMBED_CACHE_PATH=/app/.cache/fastembed
-ENV HA_RETRIEVAL_EMBEDDING_MODEL=intfloat/multilingual-e5-small
+ENV HA_RETRIEVAL_EMBEDDING_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
 
 WORKDIR /app
 

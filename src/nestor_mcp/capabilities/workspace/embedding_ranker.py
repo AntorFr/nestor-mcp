@@ -20,7 +20,10 @@ class EmbeddingRanker(Protocol):
 
 
 class FastembedRanker:
-    def __init__(self, model_name: str = "intfloat/multilingual-e5-small") -> None:
+    def __init__(
+        self,
+        model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+    ) -> None:
         self.model_name = model_name
         self._model = None
         self._doc_vectors: dict[str, list[float]] = {}
@@ -37,7 +40,7 @@ class FastembedRanker:
         """Load the model and run a tiny embed to prime caches. Returns False on failure."""
         try:
             model = self._load()
-            list(model.embed(["query: warmup"]))
+            list(model.embed(["warmup"]))
             return True
         except Exception as exc:  # noqa: BLE001
             logger.warning("FastembedRanker warmup failed: %s", exc)
@@ -61,7 +64,7 @@ class FastembedRanker:
         try:
             self._ensure_doc_vectors(docs)
             model = self._load()
-            query_vec = list(next(model.embed([f"query: {question}"])))
+            query_vec = list(next(model.embed([question])))
         except Exception as exc:  # noqa: BLE001 - dep may be missing or model fetch failed
             logger.warning("FastembedRanker unavailable: %s", exc)
             return []
@@ -80,7 +83,7 @@ class FastembedRanker:
 def _doc_passage(doc: HaDoc) -> str:
     aliases = ", ".join(doc.aliases)
     head = doc.body[:600]
-    return f"passage: {doc.title}\n{aliases}\n{head}"
+    return f"{doc.title}\n{aliases}\n{head}"
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
