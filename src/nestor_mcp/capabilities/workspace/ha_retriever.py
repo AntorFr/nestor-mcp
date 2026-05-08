@@ -51,39 +51,45 @@ class HaRetriever:
     ) -> list[str]:
         results: list[str] = []
         seen: set[str] = set()
+        docs_to_expand: list = []
 
         def add(path: str) -> None:
             if path not in seen and (self.repo_path / path).exists():
                 seen.add(path)
                 results.append(path)
 
-        def add_doc_with_sources(doc) -> None:
+        def collect_doc(doc) -> None:
             add(doc.path)
-            for _, ref_id in doc.sources:
-                target = self.ids.by_id.get(ref_id.lower())
-                if target:
-                    add(target)
+            docs_to_expand.append(doc)
 
         for path in self.ids.find(question):
             add(path)
 
         lexical = self.docs.search(question)
         for match in lexical:
-            add_doc_with_sources(match.doc)
+            collect_doc(match.doc)
 
         weak_lexical = not lexical or lexical[0].score < self.lexical_threshold
         if weak_lexical and self.embedding_ranker is not None and self.docs.docs:
             for match in self.embedding_ranker.rank(
                 question, self.docs.docs, top_k=SEMANTIC_TOP_K
             ):
-                add_doc_with_sources(match.doc)
+                collect_doc(match.doc)
 
         # Ripgrep runs as a complement, not just a fallback: lexical scoring
         # can latch onto a generic doc (e.g. one matching "maison") and miss
         # the routine/package that actually contains the answer.
-        if len(results) < MAX_FILES:
-            for path in self._ripgrep_fallback(question):
-                add(path)
+        for path in self._ripgrep_fallback(question):
+            add(path)
+
+        # Expand <!-- source: ... --> references at the end so they don't
+        # crowd out primary candidates (lexical/ripgrep) when one doc has
+        # many sources.
+        for doc in docs_to_expand:
+            for _, ref_id in doc.sources:
+                target = self.ids.by_id.get(ref_id.lower())
+                if target:
+                    add(target)
 
         if not results and previous_files:
             for path in previous_files:

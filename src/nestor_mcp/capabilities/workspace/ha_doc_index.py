@@ -11,6 +11,18 @@ DOC_DIRS = ("fonctions", "pieces", "routines")
 SOURCE_TAG_RE = re.compile(r"<!--\s*source:\s*([a-z_]+):([a-zA-Z0-9_.\-]+)\s*-->")
 TITLE_RE = re.compile(r"^#\s+(.+?)\s*$", re.MULTILINE)
 WORD_RE = re.compile(r"[a-z0-9]+")
+# Filtered from both questions and docs so generic French function words
+# (and English question words) don't dominate scoring.
+STOPWORDS = frozenset(
+    {
+        "les", "des", "une", "uns", "aux", "est", "sont", "etre", "ete", "etes",
+        "avec", "sans", "pour", "par", "sur", "sous", "dans", "chez", "vers",
+        "que", "qui", "quoi", "quel", "quels", "quelle", "quelles", "dont",
+        "comment", "quand", "donc", "mais", "car", "ses", "son", "leur", "leurs",
+        "cet", "cette", "ces", "tout", "tous", "toute", "toutes",
+        "the", "and", "for", "with", "what", "how", "when", "are", "you",
+    }
+)
 
 
 @dataclass
@@ -131,4 +143,13 @@ def _tokenize(text: str) -> set[str]:
         return set()
     normalized = unicodedata.normalize("NFKD", text)
     stripped = "".join(c for c in normalized if not unicodedata.combining(c))
-    return {tok for tok in WORD_RE.findall(stripped.lower()) if len(tok) >= 3}
+    out: set[str] = set()
+    for tok in WORD_RE.findall(stripped.lower()):
+        if len(tok) < 3 or tok in STOPWORDS:
+            continue
+        out.add(tok)
+        # Cheap French/English plural fold so "volets" matches "volet" and
+        # "fermetures" matches "fermeture".
+        if len(tok) >= 5 and tok.endswith("s") and not tok.endswith("ss"):
+            out.add(tok[:-1])
+    return out
