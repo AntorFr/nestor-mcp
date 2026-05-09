@@ -81,9 +81,18 @@ class Settings(BaseSettings):
         default="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
         alias="HA_RETRIEVAL_EMBEDDING_MODEL",
     )
-    ha_retrieval_lexical_threshold: float = Field(
-        default=5.0,
-        alias="HA_RETRIEVAL_LEXICAL_THRESHOLD",
+    ha_selector_enabled: bool = Field(default=True, alias="HA_SELECTOR_ENABLED")
+    ha_selector_model: str = Field(
+        default="claude-haiku-4-5-20251001",
+        alias="HA_SELECTOR_MODEL",
+    )
+    ha_selector_timeout_seconds: float = Field(
+        default=8.0,
+        alias="HA_SELECTOR_TIMEOUT_SECONDS",
+    )
+    ha_selector_max_candidates: int = Field(
+        default=40,
+        alias="HA_SELECTOR_MAX_CANDIDATES",
     )
 
     anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")

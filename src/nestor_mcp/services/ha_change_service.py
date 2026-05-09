@@ -481,7 +481,7 @@ class HaChangeService:
     def infer_target_files(self, user_request: str) -> list[str]:
         repo_path = Path(self.git_service.repo_path)
         if repo_path.exists():
-            repo_matches = RepoContextCapability(repo_path).find_ha_package_candidates(
+            repo_matches = RepoContextCapability(repo_path).find_ha_package_candidates_sync(
                 user_request
             )
             if repo_matches:

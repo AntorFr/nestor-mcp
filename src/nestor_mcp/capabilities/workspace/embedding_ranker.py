@@ -14,6 +14,8 @@ from nestor_mcp.capabilities.workspace.ha_doc_index import DocMatch, HaDoc
 
 logger = logging.getLogger(__name__)
 
+_PASSAGE_BODY_CHARS = 1500
+
 
 class EmbeddingRanker(Protocol):
     def rank(self, question: str, docs: list[HaDoc], top_k: int) -> list[DocMatch]: ...
@@ -37,7 +39,6 @@ class FastembedRanker:
         return self._model
 
     def warmup(self) -> bool:
-        """Load the model and run a tiny embed to prime caches. Returns False on failure."""
         try:
             model = self._load()
             list(model.embed(["warmup"]))
@@ -58,14 +59,14 @@ class FastembedRanker:
         }
         self._docs_signature = signature
 
-    def rank(self, question: str, docs: list[HaDoc], top_k: int = 4) -> list[DocMatch]:
+    def rank(self, question: str, docs: list[HaDoc], top_k: int = 5) -> list[DocMatch]:
         if not docs:
             return []
         try:
             self._ensure_doc_vectors(docs)
             model = self._load()
             query_vec = list(next(model.embed([question])))
-        except Exception as exc:  # noqa: BLE001 - dep may be missing or model fetch failed
+        except Exception as exc:  # noqa: BLE001
             logger.warning("FastembedRanker unavailable: %s", exc)
             return []
 
@@ -82,7 +83,7 @@ class FastembedRanker:
 
 def _doc_passage(doc: HaDoc) -> str:
     aliases = ", ".join(doc.aliases)
-    head = doc.body[:600]
+    head = doc.body[:_PASSAGE_BODY_CHARS]
     return f"{doc.title}\n{aliases}\n{head}"
 
 

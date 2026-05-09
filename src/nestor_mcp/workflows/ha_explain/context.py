@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 
 from nestor_mcp.capabilities.code_agent.models import CodeAgentFile
@@ -25,9 +26,11 @@ class HaExplainContextCollector:
         if repo.working_tree_dir is None:
             raise RuntimeError("Git repository has no working tree")
         repo_context = RepoContextCapability(Path(repo.working_tree_dir))
-        candidate_files = repo_context.find_ha_package_candidates(question, previous_files)
-        files = repo_context.read_files(candidate_files)
-        entities = await self.try_collect_entities(question)
+        candidate_paths, entities = await asyncio.gather(
+            repo_context.find_ha_package_candidates(question, previous_files),
+            self.try_collect_entities(question),
+        )
+        files = repo_context.read_files(candidate_paths)
         return files, entities
 
     async def try_collect_entities(self, question: str) -> list[dict]:

@@ -6,6 +6,7 @@ from nestor_mcp.capabilities.code_agent.models import CodeAgentFile
 from nestor_mcp.capabilities.llm.capability import LlmCapability
 from nestor_mcp.capabilities.llm.models import LlmExplainRequest, LlmExplainResult
 from nestor_mcp.capabilities.llm.providers import MockLlmCapability
+from nestor_mcp.capabilities.workspace.file_selector import FileCandidate
 from nestor_mcp.capabilities.workspace.ha_doc_index import DocMatch, HaDoc
 from nestor_mcp.capabilities.workspace.ha_retriever import HaRetriever
 from nestor_mcp.capabilities.workspace.repo_context import RepoContextCapability
@@ -73,63 +74,6 @@ def _write(repo: Path, rel: str, content: str) -> None:
     target.write_text(content, encoding="utf-8")
 
 
-def test_retriever_matches_function_id_directly(tmp_path: Path) -> None:
-    _write(
-        tmp_path,
-        "packages/functions/portail.yaml",
-        "automation:\n- id: function_portail_sonette\n  alias: Portail - Sonette\n",
-    )
-    context = RepoContextCapability(tmp_path)
-    assert context.find_ha_package_candidates(
-        "Que fait function_portail_sonette ?"
-    ) == ["packages/functions/portail.yaml"]
-
-
-def test_retriever_uses_doc_with_aliases(tmp_path: Path) -> None:
-    _write(
-        tmp_path,
-        "packages/functions/portail.yaml",
-        "automation:\n- id: function_portail_sonette\n  alias: Sonette\n",
-    )
-    _write(
-        tmp_path,
-        "docs/fonctions/portail.md",
-        "---\naliases: [sonette, carillon]\n---\n# Portail\n\n"
-        "<!-- source: automation:function_portail_sonette -->\n",
-    )
-    context = RepoContextCapability(tmp_path)
-    candidates = context.find_ha_package_candidates("Comment marche la sonette ?")
-    assert "docs/fonctions/portail.md" in candidates
-    assert "packages/functions/portail.yaml" in candidates
-
-
-def test_retriever_unions_multiple_doc_matches(tmp_path: Path) -> None:
-    _write(tmp_path, "packages/functions/lights.yaml", "automation:\n- id: lights_main\n")
-    _write(
-        tmp_path,
-        "packages/functions/vacances.yaml",
-        "automation:\n- id: vacances_scolaires\n",
-    )
-    _write(
-        tmp_path,
-        "docs/fonctions/eclairage.md",
-        "# Eclairage\n<!-- source: automation:lights_main -->\n",
-    )
-    _write(
-        tmp_path,
-        "docs/fonctions/vacances-scolaires.md",
-        "# Vacances scolaires\n<!-- source: automation:vacances_scolaires -->\n",
-    )
-    context = RepoContextCapability(tmp_path)
-    candidates = context.find_ha_package_candidates(
-        "Comment l'eclairage change pendant les vacances scolaires ?"
-    )
-    assert "docs/fonctions/eclairage.md" in candidates
-    assert "docs/fonctions/vacances-scolaires.md" in candidates
-    assert "packages/functions/lights.yaml" in candidates
-    assert "packages/functions/vacances.yaml" in candidates
-
-
 class _FakeRanker:
     def __init__(self, target_path: str) -> None:
         self.target_path = target_path
@@ -143,7 +87,36 @@ class _FakeRanker:
         return []
 
 
-def test_retriever_uses_embedding_fallback_when_lexical_is_weak(tmp_path: Path) -> None:
+class _RecordingSelector:
+    def __init__(self, paths: list[str] | None = None) -> None:
+        self.paths = paths
+        self.calls: list[list[FileCandidate]] = []
+
+    async def select(
+        self, question: str, candidates: list[FileCandidate], max_files: int
+    ) -> list[str]:
+        self.calls.append(list(candidates))
+        if self.paths is None:
+            return [c.path for c in candidates[:max_files]]
+        return [p for p in self.paths if p in {c.path for c in candidates}][:max_files]
+
+
+@pytest.mark.anyio
+async def test_retriever_matches_function_id_directly(tmp_path: Path) -> None:
+    _write(
+        tmp_path,
+        "packages/functions/portail.yaml",
+        "automation:\n- id: function_portail_sonette\n  alias: Portail - Sonette\n",
+    )
+    selector = _RecordingSelector()
+    retriever = HaRetriever(tmp_path, file_selector=selector)
+    assert await retriever.retrieve("Que fait function_portail_sonette ?") == [
+        "packages/functions/portail.yaml"
+    ]
+
+
+@pytest.mark.anyio
+async def test_retriever_passes_embedding_hits_to_selector(tmp_path: Path) -> None:
     _write(
         tmp_path,
         "packages/functions/portail.yaml",
@@ -154,35 +127,57 @@ def test_retriever_uses_embedding_fallback_when_lexical_is_weak(tmp_path: Path) 
         "docs/fonctions/portail.md",
         "# Portail\n<!-- source: automation:function_portail_sonette -->\n",
     )
-    fake = _FakeRanker(target_path="docs/fonctions/portail.md")
-    retriever = HaRetriever(tmp_path, embedding_ranker=fake, lexical_threshold=100.0)
+    fake_ranker = _FakeRanker(target_path="docs/fonctions/portail.md")
+    selector = _RecordingSelector(paths=["docs/fonctions/portail.md"])
+    retriever = HaRetriever(
+        tmp_path, embedding_ranker=fake_ranker, file_selector=selector
+    )
 
-    # Question with no lexical overlap with title/stem/aliases/body.
-    candidates = retriever.retrieve("Le truc qui fait ding-dong en bas")
+    candidates = await retriever.retrieve("Le truc qui fait ding-dong en bas")
 
-    assert fake.calls == 1
-    assert "docs/fonctions/portail.md" in candidates
-    assert "packages/functions/portail.yaml" in candidates
+    assert fake_ranker.calls == 1
+    assert selector.calls, "selector must be invoked"
+    seen_paths = {c.path for c in selector.calls[0]}
+    assert "docs/fonctions/portail.md" in seen_paths
+    # Selected doc had a <!-- source: --> tag pointing at the YAML, so the
+    # retriever expands the link automatically.
+    assert candidates == [
+        "docs/fonctions/portail.md",
+        "packages/functions/portail.yaml",
+    ]
 
 
-def test_retriever_skips_embedding_when_lexical_is_strong(tmp_path: Path) -> None:
+@pytest.mark.anyio
+async def test_retriever_falls_back_to_head_when_selector_returns_empty(
+    tmp_path: Path,
+) -> None:
     _write(
         tmp_path,
-        "docs/fonctions/portail.md",
-        "---\naliases: [sonette, carillon]\n---\n# Portail sonette\n",
+        "packages/functions/portail.yaml",
+        "automation:\n- id: function_portail_sonette\n",
     )
-    fake = _FakeRanker(target_path="docs/fonctions/portail.md")
-    retriever = HaRetriever(tmp_path, embedding_ranker=fake, lexical_threshold=2.0)
+    fake_ranker = _FakeRanker(target_path="packages/functions/portail.yaml")
+    # Doc-less candidate so embedding ranker still produces something.
+    _write(tmp_path, "docs/fonctions/portail.md", "# Portail\n")
+    fake_ranker.target_path = "docs/fonctions/portail.md"
+    selector = _RecordingSelector(paths=[])  # selector "rejects" everything
+    retriever = HaRetriever(
+        tmp_path, embedding_ranker=fake_ranker, file_selector=selector
+    )
 
-    retriever.retrieve("Comment marche le portail sonette ?")
+    candidates = await retriever.retrieve("Question sans rapport")
 
-    assert fake.calls == 0
+    assert candidates  # head fallback engaged
+    assert "docs/fonctions/portail.md" in candidates
 
 
-def test_retriever_falls_back_to_previous_files_when_nothing_matches(tmp_path: Path) -> None:
+@pytest.mark.anyio
+async def test_retriever_falls_back_to_previous_files_when_nothing_matches(
+    tmp_path: Path,
+) -> None:
     _write(tmp_path, "packages/areas/salon.yaml", "automation: []\n")
-    context = RepoContextCapability(tmp_path)
-    assert context.find_ha_package_candidates(
+    retriever = HaRetriever(tmp_path)
+    assert await retriever.retrieve(
         "??",
         previous_files=["packages/areas/salon.yaml"],
     ) == ["packages/areas/salon.yaml"]
