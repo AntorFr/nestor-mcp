@@ -60,10 +60,15 @@ class AnthropicFileSelector:
         system = (
             "Tu es un sélecteur de fichiers pour une configuration Home Assistant.\n"
             "On te donne une question utilisateur et une liste de fichiers candidats "
-            "(chemin + courte description).\n"
+            "(chemin + description avec titre + sections).\n\n"
+            "Objectif: rassembler TOUS les fichiers nécessaires pour donner une "
+            "réponse COMPLETE — pas seulement le plus pertinent. Si plusieurs "
+            "routines, fonctions ou pièces touchent au sujet, inclus-les TOUTES.\n"
+            "En cas de doute, préfère sur-sélectionner. Inclus les .md explicatifs "
+            "ET les .yaml de configuration utiles.\n\n"
             f"Renvoie UNIQUEMENT du JSON: {{\"paths\": [...]}} avec au plus {max_files} "
-            "chemins choisis parmi la liste, dans l'ordre de pertinence. Inclus les .md "
-            "explicatifs ET les .yaml de configuration utiles. Ne réponds rien d'autre."
+            "chemins choisis parmi la liste, dans l'ordre de pertinence. Ne réponds "
+            "rien d'autre."
         )
         user = f"Question:\n{question}\n\nCandidats:\n{listing}"
 

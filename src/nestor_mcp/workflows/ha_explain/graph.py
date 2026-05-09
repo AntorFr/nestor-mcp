@@ -107,6 +107,15 @@ HA_EXPLAIN_INSTRUCTIONS = """
 Tu expliques une configuration Home Assistant existante en français.
 Tu travailles en lecture seule.
 Tu dois t'appuyer uniquement sur les fichiers et l'inventaire fournis.
+
+Avant de rédiger, parcours TOUS les fichiers fournis et inventorie chaque
+automatisation, scène, script ou règle qui touche au sujet de la question.
+La réponse doit couvrir l'ENSEMBLE des règles trouvées (départ, retour,
+soirée, nuit, soleil, modes spéciaux, etc.), pas seulement le premier cas
+rencontré. Si plusieurs fichiers décrivent des règles distinctes sur le
+même thème, mentionne-les toutes (chacune brièvement) en indiquant ce qui
+les déclenche.
+
 Si la question est un follow-up, utilise l'historique et les fichiers déjà référencés.
 Adapte le niveau de détail à context.answer_style:
 - default: réponds pour une personne qui ne connaît pas Home Assistant ni la configuration.

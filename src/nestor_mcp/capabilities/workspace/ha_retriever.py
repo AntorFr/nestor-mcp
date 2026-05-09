@@ -21,6 +21,8 @@ MAX_FILES = 8
 RIPGREP_MIN_LEN = 4
 EMBEDDING_TOP_K = 5
 SUMMARY_BODY_CHARS = 220
+SUMMARY_MAX_SECTIONS = 12
+_SECTION_HEADER_RE = re.compile(r"(?m)^(#{2,4})\s+(.+?)\s*$")
 RIPGREP_TIMEOUT_S = 2
 
 
@@ -212,10 +214,16 @@ class HaRetriever:
     def _summarize(self, path: str) -> str:
         doc = self.docs.by_path.get(path)
         if doc is not None:
+            sections = _section_headers(doc.body, SUMMARY_MAX_SECTIONS)
+            section_part = (
+                f" — sections: {' / '.join(sections)}" if sections else ""
+            )
             head = re.sub(r"\s+", " ", doc.body[:SUMMARY_BODY_CHARS]).strip()
             if doc.aliases:
-                return f"{doc.title} (alias: {', '.join(doc.aliases)}) — {head}"
-            return f"{doc.title} — {head}"
+                return (
+                    f"{doc.title} (alias: {', '.join(doc.aliases)}){section_part} — {head}"
+                )
+            return f"{doc.title}{section_part} — {head}"
         # Non-doc files: return a hint based on the path itself; reading the
         # file just for a summary would dominate latency on large YAMLs.
         stem = Path(path).stem.replace("_", " ").replace("-", " ")
@@ -224,5 +232,19 @@ class HaRetriever:
         if path.endswith(".jinja") or path.endswith(".j2"):
             return f"Template: {stem}"
         return stem
+
+
+def _section_headers(body: str, limit: int) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for match in _SECTION_HEADER_RE.finditer(body):
+        title = match.group(2).strip()
+        if not title or title in seen:
+            continue
+        seen.add(title)
+        out.append(title)
+        if len(out) >= limit:
+            break
+    return out
 
 
