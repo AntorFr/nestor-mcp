@@ -9,7 +9,6 @@ from nestor_mcp.capabilities.llm.providers import MockLlmCapability
 from nestor_mcp.capabilities.workspace.file_selector import FileCandidate
 from nestor_mcp.capabilities.workspace.ha_doc_index import DocMatch, HaDoc
 from nestor_mcp.capabilities.workspace.ha_retriever import HaRetriever
-from nestor_mcp.capabilities.workspace.repo_context import RepoContextCapability
 from nestor_mcp.orchestration.store import WorkflowStore
 from nestor_mcp.workflows.ha_explain.graph import HaExplainGraphFactory, infer_answer_style
 from nestor_mcp.workflows.ha_explain.workflow import HaExplainWorkflow

@@ -12,7 +12,7 @@ from nestor_mcp.capabilities.workspace.file_selector import (
     FileSelector,
     HeadFileSelector,
 )
-from nestor_mcp.capabilities.workspace.ha_doc_index import HaDoc, HaDocIndex
+from nestor_mcp.capabilities.workspace.ha_doc_index import HaDocIndex
 from nestor_mcp.capabilities.workspace.ha_id_index import HaIdIndex
 
 logger = logging.getLogger(__name__)

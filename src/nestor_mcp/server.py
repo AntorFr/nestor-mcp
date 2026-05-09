@@ -2,12 +2,11 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
 from mcp.server.fastmcp import FastMCP
-
-from pathlib import Path
 
 from nestor_mcp.capabilities.workspace.ha_doc_index import HaDocIndex
 from nestor_mcp.capabilities.workspace.repo_context import _shared_ranker
