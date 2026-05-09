@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 
 from nestor_mcp.config import get_settings
 from nestor_mcp.models.ha_change import (
@@ -18,6 +18,58 @@ from nestor_mcp.workflows.ha_explain.workflow import HaExplainWorkflow
 
 logger = logging.getLogger(__name__)
 _BACKGROUND_DRAFT_TASKS: dict[str, asyncio.Task] = {}
+
+_HEARTBEAT_INTERVAL_S = 1.5
+_HEARTBEAT_MESSAGES = (
+    "Recherche dans la configuration...",
+    "Analyse des fichiers pertinents...",
+    "Sélection du contexte...",
+    "Lecture des automatisations...",
+    "Rédaction de la réponse...",
+)
+
+
+async def _run_with_heartbeat(coro, ctx: Context | None):
+    """Run `coro` while emitting MCP progress notifications periodically.
+
+    Some MCP clients (notably HA's integration) treat progress events as
+    keep-alive and extend their idle timeout. Without this, a 6-8s tool
+    call can hit the conversation deadline even though work is in flight.
+    """
+    if ctx is None:
+        return await coro
+
+    task = asyncio.create_task(coro)
+
+    async def beat() -> None:
+        step = 0
+        while not task.done():
+            try:
+                await ctx.report_progress(
+                    progress=min(step + 1, len(_HEARTBEAT_MESSAGES)),
+                    total=len(_HEARTBEAT_MESSAGES) + 1,
+                    message=_HEARTBEAT_MESSAGES[step % len(_HEARTBEAT_MESSAGES)],
+                )
+            except Exception as exc:  # noqa: BLE001 - never fail the tool on progress
+                logger.debug("progress notification failed: %s", exc)
+                return
+            step += 1
+            try:
+                await asyncio.wait_for(asyncio.shield(task), timeout=_HEARTBEAT_INTERVAL_S)
+            except TimeoutError:
+                continue
+            except Exception:
+                return
+
+    heartbeat_task = asyncio.create_task(beat())
+    try:
+        return await task
+    finally:
+        heartbeat_task.cancel()
+        try:
+            await heartbeat_task
+        except (asyncio.CancelledError, Exception):
+            pass
 
 
 def register_ha_gitops_tools(mcp: FastMCP) -> None:
@@ -47,6 +99,7 @@ def register_ha_gitops_tools(mcp: FastMCP) -> None:
     async def explain_smart_home_behavior(
         question: str,
         run_id: str | None = None,
+        ctx: Context | None = None,
     ) -> str:
         """
         Use this when the user asks why something happens in their smart home or
@@ -57,13 +110,17 @@ def register_ha_gitops_tools(mcp: FastMCP) -> None:
         explains the behavior in user-friendly French. Use follow-up questions with
         the same run_id when the user asks for more detail about the same topic.
         """
-        response = await HaExplainWorkflow().ask(question=question, run_id=run_id)
+        response = await _run_with_heartbeat(
+            HaExplainWorkflow().ask(question=question, run_id=run_id),
+            ctx,
+        )
         return format_ha_explain_tool_response(response)
 
     @mcp.tool()
     async def explain_home_assistant_config(
         question: str,
         run_id: str | None = None,
+        ctx: Context | None = None,
     ) -> str:
         """
         Use this for technical questions about the real Home Assistant
@@ -71,7 +128,11 @@ def register_ha_gitops_tools(mcp: FastMCP) -> None:
         files. Prefer explain_smart_home_behavior for normal user questions like
         "why do the living room lights turn on by themselves?".
         """
-        return await explain_smart_home_behavior(question=question, run_id=run_id)
+        response = await _run_with_heartbeat(
+            HaExplainWorkflow().ask(question=question, run_id=run_id),
+            ctx,
+        )
+        return format_ha_explain_tool_response(response)
 
     @mcp.tool()
     async def draft_home_assistant_change(
