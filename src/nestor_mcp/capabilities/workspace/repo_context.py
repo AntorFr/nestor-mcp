@@ -34,6 +34,7 @@ class RepoContextCapability:
             embedding_ranker=ranker,  # type: ignore[arg-type]
             file_selector=file_selector or get_file_selector(),
             max_candidates=settings.ha_selector_max_candidates,
+            selector_deadline_s=settings.ha_selector_deadline_seconds,
         )
 
     async def find_ha_package_candidates(

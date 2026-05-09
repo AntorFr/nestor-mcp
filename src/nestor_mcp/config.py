@@ -86,12 +86,19 @@ class Settings(BaseSettings):
         default="claude-haiku-4-5-20251001",
         alias="HA_SELECTOR_MODEL",
     )
+    # httpx-level timeout (network) for the selector call. We additionally
+    # cap total selector latency via ha_selector_deadline_seconds below so
+    # a hung TLS handshake can't blow the HA conversation budget.
     ha_selector_timeout_seconds: float = Field(
-        default=8.0,
+        default=4.0,
         alias="HA_SELECTOR_TIMEOUT_SECONDS",
     )
+    ha_selector_deadline_seconds: float = Field(
+        default=3.5,
+        alias="HA_SELECTOR_DEADLINE_SECONDS",
+    )
     ha_selector_max_candidates: int = Field(
-        default=40,
+        default=25,
         alias="HA_SELECTOR_MAX_CANDIDATES",
     )
 

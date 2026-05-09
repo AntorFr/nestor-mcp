@@ -44,11 +44,13 @@ class HaRetriever:
         embedding_ranker: EmbeddingRanker | None = None,
         file_selector: FileSelector | None = None,
         max_candidates: int = 40,
+        selector_deadline_s: float = 3.5,
     ) -> None:
         self.repo_path = repo_path
         self.embedding_ranker = embedding_ranker
         self.file_selector = file_selector or HeadFileSelector()
         self.max_candidates = max_candidates
+        self.selector_deadline_s = selector_deadline_s
         self._docs: HaDocIndex | None = None
         self._ids: HaIdIndex | None = None
 
@@ -88,7 +90,16 @@ class HaRetriever:
 
         candidates = [FileCandidate(path=p, summary=self._summarize(p)) for p in ordered]
         try:
-            selected = await self.file_selector.select(question, candidates, MAX_FILES)
+            selected = await asyncio.wait_for(
+                self.file_selector.select(question, candidates, MAX_FILES),
+                timeout=self.selector_deadline_s,
+            )
+        except TimeoutError:
+            logger.warning(
+                "file selector exceeded deadline %.1fs, falling back to head",
+                self.selector_deadline_s,
+            )
+            selected = []
         except Exception as exc:  # noqa: BLE001 - selector must never fail the call
             logger.warning("file selector raised, falling back: %s", exc)
             selected = []
