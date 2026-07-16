@@ -12,7 +12,17 @@ def test_app_exposes_mcp_transport_routes_at_root_paths() -> None:
     assert "/health" in paths
     assert "/sse" in paths
     assert "/messages" in paths
-    assert "/mcp" in paths
+
+
+def test_streamable_http_is_served_at_the_origin_root() -> None:
+    """The OAuth sidecar can only advertise the origin root as the RFC 9728
+    resource, so the streamable HTTP endpoint must live at "/" to match it."""
+    app = create_app(create_mcp_server())
+
+    paths = {getattr(route, "path", None) for route in app.routes}
+
+    assert "/" in paths
+    assert "/mcp" not in paths
 
 
 def test_health_endpoint_works_with_mcp_routes_registered() -> None:

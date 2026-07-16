@@ -38,8 +38,16 @@ docker compose up --build
 Le serveur expose :
 
 - `GET /health` pour les probes.
-- `/mcp` pour le transport MCP streamable HTTP.
+- `/` pour le transport MCP streamable HTTP.
 - `/sse` pour le transport MCP SSE.
+
+Le transport streamable HTTP est servi à la **racine** (et non sur `/mcp`) pour que
+l'URL de l'endpoint MCP soit égale à l'origine. Le sidecar OAuth placé devant le
+serveur protège l'origine entière : il ne peut annoncer que la racine comme
+`resource` RFC 9728, et ne sert les métadonnées OAuth que sur les well-knowns de la
+racine. Les clients qui dérivent la découverte OAuth de l'URL de l'endpoint — dont
+le client MCP de Home Assistant — n'y arrivent donc que si cette URL est sans
+chemin. Côté Home Assistant, configurer l'intégration avec `https://<host>/`.
 
 ## Test du workflow Home Assistant
 

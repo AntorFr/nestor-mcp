@@ -41,6 +41,14 @@ def create_mcp_server() -> FastMCP:
         settings.mcp_server_name,
         host=settings.mcp_host,
         port=settings.mcp_port,
+        # Streamable HTTP is served at "/" rather than the default "/mcp" so the
+        # MCP endpoint URL equals the origin. The OAuth sidecar in front of us
+        # fronts the whole origin, so it can only advertise the origin root as
+        # the RFC 9728 `resource`, and only serves the OAuth metadata at the
+        # root well-knowns (every path-scoped variant 401s). Clients that derive
+        # OAuth discovery from the endpoint URL -- Home Assistant's MCP client
+        # among them -- therefore only succeed when that URL has no path.
+        streamable_http_path="/",
     )
 
     register_ha_gitops_tools(mcp)

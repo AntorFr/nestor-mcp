@@ -15,7 +15,7 @@ autres services maison.
 ## Endpoints
 
 - Health check : `GET /health`
-- MCP streamable HTTP : `/mcp`
+- MCP streamable HTTP : `/` (racine — voir le README pour la contrainte OAuth)
 - MCP SSE : `/sse`
 
 Probes recommandées :
